@@ -1,0 +1,161 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  displayName String
+  role        Role     @default(STUDENT)
+  isAnonymous Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ratings    DifficultyRating[]
+  messages   Message[]
+  reports    Report[]
+  auditLogs  AuditLog[] @relation("AuditActor")
+  targetLogs AuditLog[] @relation("AuditTarget")
+  accounts   Account[]
+  sessions   Session[]
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+  SUPER_ADMIN
+}
+
+model Faculty {
+  id        String   @id @default(cuid())
+  name      String
+  nameTh    String
+  createdAt DateTime @default(now())
+
+  curricula Curriculum[]
+  courses   Course[]
+}
+
+model Curriculum {
+  id             String      @id @default(cuid())
+  facultyId      String
+  programType    ProgramType
+  curriculumYear Int
+  createdAt      DateTime    @default(now())
+
+  faculty Faculty  @relation(fields: [facultyId], references: [id])
+  courses Course[]
+}
+
+enum ProgramType {
+  REGULAR
+  INTERNATIONAL
+}
+
+model Course {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String
+  nameTh       String
+  facultyId    String
+  curriculumId String
+  createdAt    DateTime @default(now())
+
+  faculty    Faculty          @relation(fields: [facultyId], references: [id])
+  curriculum Curriculum       @relation(fields: [curriculumId], references: [id])
+  ratings    DifficultyRating[]
+  reviewRoom ReviewRoom?
+}
+
+model ReviewRoom {
+  id        String   @id @default(cuid())
+  courseId  String   @unique
+  createdAt DateTime @default(now())
+
+  course   Course    @relation(fields: [courseId], references: [id])
+  messages Message[]
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String
+  content   String
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  room ReviewRoom @relation(fields: [roomId], references: [id])
+  user User       @relation(fields: [userId], references: [id])
+}
+
+model DifficultyRating {
+  id        String   @id @default(cuid())
+  courseId  String
+  userId    String
+  rating    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([courseId, userId])
+}
+
+model Report {
+  id           String   @id @default(cuid())
+  userId       String?
+  content      String
+  systemRating Int
+  createdAt    DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String
+  targetId  String
+  action    String
+  createdAt DateTime @default(now())
+
+  actor  User @relation("AuditActor", fields: [actorId], references: [id])
+  target User @relation("AuditTarget", fields: [targetId], references: [id])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
