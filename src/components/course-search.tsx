@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Search, X } from 'lucide-react'
 import Link from 'next/link'
+import { type Lang, t } from '@/lib/i18n'
 
 interface CourseResult {
   id: string
@@ -16,10 +17,10 @@ interface CourseResult {
 
 interface CourseSearchProps {
   initialQuery?: string
-  curriculumId?: string
+  lang?: Lang
 }
 
-export default function CourseSearch({ initialQuery = '', curriculumId }: CourseSearchProps) {
+export default function CourseSearch({ initialQuery = '', lang = 'th' }: CourseSearchProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [query, setQuery] = useState(initialQuery)
@@ -28,33 +29,28 @@ export default function CourseSearch({ initialQuery = '', curriculumId }: Course
   const [searched, setSearched] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const fetchCourses = useCallback(
-    async (q: string) => {
-      setLoading(true)
-      try {
-        const params = new URLSearchParams()
-        if (q) params.set('q', q)
-        if (curriculumId) params.set('curriculum', curriculumId)
-
-        const res = await fetch(`/api/courses?${params.toString()}`)
-        if (res.ok) {
-          const data = await res.json()
-          setResults(data.courses ?? [])
-        }
-      } catch {
-        setResults([])
-      } finally {
-        setLoading(false)
-        setSearched(true)
+  const fetchCourses = useCallback(async (q: string) => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (q) params.set('q', q)
+      const res = await fetch(`/api/courses?${params.toString()}`)
+      if (res.ok) {
+        const data = await res.json()
+        setResults(data.courses ?? [])
       }
-    },
-    [curriculumId]
-  )
+    } catch {
+      setResults([])
+    } finally {
+      setLoading(false)
+      setSearched(true)
+    }
+  }, [])
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
-    if (!query.trim() && !curriculumId) {
+    if (!query.trim()) {
       setResults([])
       setSearched(false)
       return
@@ -67,12 +63,11 @@ export default function CourseSearch({ initialQuery = '', curriculumId }: Course
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [query, curriculumId, fetchCourses])
+  }, [query, fetchCourses])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     setQuery(val)
-    // Update URL search param
     const params = new URLSearchParams(searchParams.toString())
     if (val) {
       params.set('q', val)
@@ -91,7 +86,9 @@ export default function CourseSearch({ initialQuery = '', curriculumId }: Course
     router.replace(`/?${params.toString()}`, { scroll: false })
   }
 
-  const showResults = searched || (curriculumId && results.length > 0)
+  const placeholder = lang === 'en'
+    ? 'Search courses (code or name)'
+    : 'ค้นหากระบวนวิชา (รหัสวิชา หรือ ชื่อวิชา)'
 
   return (
     <div className="space-y-3">
@@ -101,13 +98,13 @@ export default function CourseSearch({ initialQuery = '', curriculumId }: Course
           type="text"
           value={query}
           onChange={handleChange}
-          placeholder="ค้นหากระบวนวิชา (รหัสวิชา หรือ ชื่อวิชา)"
-          className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+          placeholder={placeholder}
+          className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition-shadow"
         />
         {query && (
           <button
             onClick={clearSearch}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -115,13 +112,13 @@ export default function CourseSearch({ initialQuery = '', curriculumId }: Course
       </div>
 
       {loading && (
-        <div className="text-center py-4 text-gray-500 text-sm">กำลังค้นหา...</div>
+        <div className="text-center py-4 text-gray-500 text-sm">{t(lang, 'searching')}</div>
       )}
 
-      {!loading && showResults && results.length === 0 && (
+      {!loading && searched && results.length === 0 && (
         <div className="text-center py-8 text-gray-500">
-          <p className="text-base font-medium">ไม่พบกระบวนวิชา</p>
-          <p className="text-sm mt-1">ลองค้นหาด้วยคำอื่น หรือเปลี่ยนหลักสูตร</p>
+          <p className="text-base font-medium text-gray-700">{t(lang, 'notFound')}</p>
+          <p className="text-sm mt-1 text-gray-400">{t(lang, 'notFoundSub')}</p>
         </div>
       )}
 
@@ -130,7 +127,7 @@ export default function CourseSearch({ initialQuery = '', curriculumId }: Course
           {results.map(course => (
             <Link
               key={course.id}
-              href={`/course/${course.id}`}
+              href={`/course/${course.id}?lang=${lang}`}
               className="block p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-400 hover:shadow-sm transition-all"
             >
               <div className="flex items-start justify-between gap-2">
@@ -146,9 +143,9 @@ export default function CourseSearch({ initialQuery = '', curriculumId }: Course
                       <span className="text-sm font-semibold text-gray-700">{course.averageRating}</span>
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-400">ยังไม่มีคะแนน</span>
+                    <span className="text-xs text-gray-400">{t(lang, 'noRating')}</span>
                   )}
-                  <p className="text-xs text-gray-400 mt-0.5">{course.totalRatings} รีวิว</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{course.totalRatings} {t(lang, 'reviews')}</p>
                 </div>
               </div>
             </Link>
