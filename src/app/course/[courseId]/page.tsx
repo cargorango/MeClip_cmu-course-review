@@ -7,7 +7,7 @@ import DifficultyRating from '@/components/difficulty-rating'
 import ReviewRoom from '@/components/review-room'
 import FeedbackButton from '@/components/feedback-button'
 import LangToggle from '@/components/lang-toggle'
-import { GraduationCap, ArrowLeft, BookOpen } from 'lucide-react'
+import { GraduationCap, ArrowLeft, BookOpen, Settings } from 'lucide-react'
 import { type Lang, t } from '@/lib/i18n'
 import { Suspense } from 'react'
 
@@ -67,12 +67,23 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
               <LangToggle currentLang={lang} />
             </Suspense>
             {session?.user ? (
-              <Link
-                href={`/profile?lang=${lang}`}
-                className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
-              >
-                {session.user.displayName ?? session.user.name ?? t(lang, 'profile')}
-              </Link>
+              <div className="flex items-center gap-1.5">
+                <Link
+                  href={`/profile?lang=${lang}`}
+                  className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
+                >
+                  {session.user.displayName ?? session.user.name ?? t(lang, 'profile')}
+                </Link>
+                {(session.user.role === 'ADMIN' || session.user.role === 'SUPER_ADMIN') && (
+                  <Link
+                    href="/admin"
+                    className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="จัดการระบบ"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </Link>
+                )}
+              </div>
             ) : (
               <Link
                 href={`/login?callbackUrl=/course/${courseId}&lang=${lang}`}
