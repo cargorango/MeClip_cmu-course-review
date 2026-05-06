@@ -4,6 +4,9 @@ import { searchCourses } from '@/lib/course-search'
 import { filterByCurriculum } from '@/lib/course-filter'
 import { calculateAverageRating } from '@/lib/rating'
 
+// Force dynamic so Next.js doesn't try to statically render this route
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -11,18 +14,23 @@ export async function GET(request: NextRequest) {
     const curriculumId = searchParams.get('curriculum') ?? ''
     const year = searchParams.get('year') ?? ''
 
-    // Fetch all courses with rating counts
+    // Use aggregation to avoid fetching all rating rows
     const courses = await prisma.course.findMany({
-      include: {
-        ratings: { select: { rating: true } },
-        faculty: { select: { id: true, name: true, nameTh: true } },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        nameTh: true,
+        facultyId: true,
+        curriculumId: true,
         curriculum: {
           select: { id: true, programType: true, curriculumYear: true },
         },
+        _count: { select: { ratings: true } },
+        ratings: { select: { rating: true } },
       },
     })
 
-    // Map to response shape
     let result = courses.map(course => ({
       id: course.id,
       code: course.code,
@@ -33,15 +41,13 @@ export async function GET(request: NextRequest) {
       programType: course.curriculum.programType,
       curriculumYear: course.curriculum.curriculumYear,
       averageRating: calculateAverageRating(course.ratings.map(r => r.rating)),
-      totalRatings: course.ratings.length,
+      totalRatings: course._count.ratings,
     }))
 
-    // Filter by curriculum
     if (curriculumId) {
       result = filterByCurriculum(result, curriculumId)
     }
 
-    // Filter by year
     if (year) {
       const yearNum = parseInt(year)
       if (!isNaN(yearNum)) {
@@ -49,12 +55,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Search by query
     if (q) {
       result = searchCourses(result, q)
     }
 
-    return NextResponse.json({ courses: result })
+    return NextResponse.json(
+      { courses: result },
+      {
+        headers: {
+          // Cache for 30s on CDN, stale-while-revalidate 60s
+          'Cache-Control': 's-maxage=30, stale-while-revalidate=60',
+        },
+      }
+    )
   } catch (error) {
     console.error('GET /api/courses error:', error)
     return NextResponse.json(

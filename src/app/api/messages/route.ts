@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { calculateReviewerLevel } from '@/lib/reviewer-level'
 import { containsProfanity } from '@/lib/profanity'
 
+export const dynamic = 'force-dynamic'
+
 const PAGE_SIZE = 50
 
 export async function GET(request: NextRequest) {

@@ -39,15 +39,21 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
   const [connected, setConnected] = useState(true)
-  const [reconnecting, setReconnecting] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const topRef = useRef<HTMLDivElement>(null)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const reconnectAttempts = useRef(0)
+  const messagesRef = useRef<Message[]>([])
+
+  // Keep ref in sync for use inside callbacks
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   const fetchMessages = useCallback(async (cursor?: string) => {
     const params = new URLSearchParams({ courseId, limit: '50' })
@@ -57,83 +63,82 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
     return res.json() as Promise<{ messages: Message[]; nextCursor: string | null }>
   }, [courseId])
 
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 80)
+  }, [])
+
   // Initial load
   useEffect(() => {
-    fetchMessages().then(data => {
-      setMessages(data.messages)
-      setNextCursor(data.nextCursor)
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-    }).catch(() => {})
-  }, [fetchMessages])
+    setInitialLoading(true)
+    fetchMessages()
+      .then(data => {
+        setMessages(data.messages)
+        setNextCursor(data.nextCursor)
+        scrollToBottom()
+      })
+      .catch(() => {})
+      .finally(() => setInitialLoading(false))
+  }, [fetchMessages, scrollToBottom])
 
-  // Supabase Realtime subscription
+  // Supabase Realtime — append new messages without full refetch
   useEffect(() => {
     const supabase = getSupabaseClient()
-    const channel = supabase
-      .channel(`review-room-${courseId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'Message', filter: `roomId=eq.${courseId}` },
-        () => {
-          // Refetch latest messages on new insert
-          fetchMessages().then(data => {
-            setMessages(data.messages)
-            setNextCursor(data.nextCursor)
-            setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-          }).catch(() => {})
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          setConnected(true)
-          setReconnecting(false)
-          reconnectAttempts.current = 0
-          // Clear polling fallback if connected
-          if (pollingRef.current) {
-            clearInterval(pollingRef.current)
-            pollingRef.current = null
-          }
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setConnected(false)
-          startPollingFallback()
-        } else if (status === 'CLOSED') {
-          setConnected(false)
-          handleReconnect(channel)
-        }
-      })
 
-    function startPollingFallback() {
+    const startPolling = () => {
       if (pollingRef.current) return
       pollingRef.current = setInterval(() => {
-        fetchMessages().then(data => {
-          setMessages(data.messages)
-          setNextCursor(data.nextCursor)
-        }).catch(() => {})
+        fetchMessages()
+          .then(data => {
+            setMessages(data.messages)
+            setNextCursor(data.nextCursor)
+          })
+          .catch(() => {})
       }, 5000)
     }
 
-    function handleReconnect(ch: typeof channel) {
-      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000)
-      reconnectAttempts.current++
-      setReconnecting(true)
-      setTimeout(() => {
-        supabase.removeChannel(ch)
-        // Re-subscribe by re-running effect (via state change)
-        setReconnecting(false)
-      }, delay)
-    }
-
-    return () => {
-      supabase.removeChannel(channel)
+    const stopPolling = () => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current)
         pollingRef.current = null
       }
     }
-  }, [courseId, fetchMessages])
 
-  // Load more (pagination)
-  const loadMore = async () => {
+    const channel = supabase
+      .channel(`room-${courseId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'Message' },
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        (_payload) => {
+          // Refetch latest messages to get formatted sender info
+          fetchMessages()
+            .then(data => {
+              setMessages(data.messages)
+              setNextCursor(data.nextCursor)
+              scrollToBottom()
+            })
+            .catch(() => {})
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          setConnected(true)
+          reconnectAttempts.current = 0
+          stopPolling()
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setConnected(false)
+          startPolling()
+        }
+      })
+
+    return () => {
+      supabase.removeChannel(channel)
+      stopPolling()
+    }
+  }, [courseId, fetchMessages, scrollToBottom])
+
+  // Load more (scroll up pagination)
+  const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore) return
     setLoadingMore(true)
     try {
@@ -145,104 +150,133 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
     } finally {
       setLoadingMore(false)
     }
-  }
+  }, [nextCursor, loadingMore, fetchMessages])
 
-  // Intersection observer for scroll-to-top pagination
+  // Intersection observer for auto-load on scroll up
   useEffect(() => {
     if (!topRef.current || !nextCursor) return
     const observer = new IntersectionObserver(
-      entries => {
-        if (entries[0].isIntersecting) loadMore()
-      },
+      entries => { if (entries[0].isIntersecting) loadMore() },
       { threshold: 0.1 }
     )
     observer.observe(topRef.current)
     return () => observer.disconnect()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextCursor])
+  }, [nextCursor, loadMore])
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim()) return
+    const trimmed = input.trim()
+    if (!trimmed || sending) return
+
     setSending(true)
     setSendError('')
+
+    // Optimistic UI — add temp message immediately
+    const tempId = `temp-${Date.now()}`
+    const tempMsg: Message = {
+      id: tempId,
+      content: trimmed,
+      createdAt: new Date().toISOString(),
+      sender: { displayName: 'คุณ', reviewerLevel: null },
+    }
+    setMessages(prev => [...prev, tempMsg])
+    setInput('')
+    scrollToBottom()
+
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ courseId, content: input.trim() }),
+        body: JSON.stringify({ courseId, content: trimmed }),
       })
+
       if (res.ok) {
-        setInput('')
-        // Refresh messages
+        // Replace temp message with real data from server
         const data = await fetchMessages()
         setMessages(data.messages)
         setNextCursor(data.nextCursor)
-        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+        scrollToBottom()
       } else {
+        // Remove temp message on error
+        setMessages(prev => prev.filter(m => m.id !== tempId))
+        setInput(trimmed)
         const data = await res.json()
         setSendError(data.error ?? 'เกิดข้อผิดพลาด')
       }
     } catch {
+      setMessages(prev => prev.filter(m => m.id !== tempId))
+      setInput(trimmed)
       setSendError('เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
       setSending(false)
     }
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend(e as unknown as React.FormEvent)
+    }
+  }
+
   return (
     <div className="flex flex-col h-[500px]">
       {/* Connection status */}
-      {(!connected || reconnecting) && (
+      {!connected && (
         <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-xs text-yellow-700 flex items-center gap-2">
           <Loader2 className="w-3 h-3 animate-spin" />
-          กำลังเชื่อมต่อใหม่...
+          ใช้ polling แทน realtime (เชื่อมต่อใหม่อัตโนมัติ)
         </div>
       )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {/* Load more trigger */}
         <div ref={topRef} className="h-1" />
+
         {loadingMore && (
           <div className="text-center py-2">
             <Loader2 className="w-4 h-4 animate-spin mx-auto text-gray-400" />
           </div>
         )}
+
         {nextCursor && !loadingMore && (
           <button
             onClick={loadMore}
-            className="w-full text-xs text-blue-600 hover:underline py-1"
+            className="w-full text-xs text-blue-600 hover:underline py-1 transition-colors"
           >
             โหลดข้อความก่อนหน้า
           </button>
         )}
 
-        {messages.length === 0 && (
+        {initialLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+          </div>
+        ) : messages.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <p className="text-sm">ยังไม่มีข้อความ</p>
             <p className="text-xs mt-1">เป็นคนแรกที่รีวิววิชานี้!</p>
           </div>
-        )}
-
-        {[...messages].reverse().map(msg => (
-          <div key={msg.id} className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-800">
-                {msg.sender.displayName}
-              </span>
-              {msg.sender.reviewerLevel && (
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${LEVEL_COLORS[msg.sender.reviewerLevel] ?? 'bg-gray-100 text-gray-600'}`}>
-                  {msg.sender.reviewerLevel}
+        ) : (
+          [...messages].reverse().map(msg => (
+            <div key={msg.id} className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-gray-800">
+                  {msg.sender.displayName}
                 </span>
-              )}
-              <span className="text-xs text-gray-400 ml-auto">{formatTime(msg.createdAt)}</span>
+                {msg.sender.reviewerLevel && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${LEVEL_COLORS[msg.sender.reviewerLevel] ?? 'bg-gray-100 text-gray-600'}`}>
+                    {msg.sender.reviewerLevel}
+                  </span>
+                )}
+                <span className="text-xs text-gray-400 ml-auto">{formatTime(msg.createdAt)}</span>
+              </div>
+              <p className={`text-sm text-gray-700 rounded-lg px-3 py-2 leading-relaxed ${msg.id.startsWith('temp-') ? 'bg-blue-50 opacity-70' : 'bg-gray-50'}`}>
+                {msg.content}
+              </p>
             </div>
-            <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2 leading-relaxed">
-              {msg.content}
-            </p>
-          </div>
-        ))}
+          ))
+        )}
         <div ref={bottomRef} />
       </div>
 
@@ -251,7 +285,9 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
         {!isLoggedIn ? (
           <div className="text-center py-2">
             <p className="text-sm text-gray-500">
-              <a href="/login" className="text-blue-600 hover:underline font-medium">เข้าสู่ระบบ</a>{' '}
+              <a href="/login" className="text-blue-600 hover:underline font-medium">
+                เข้าสู่ระบบ
+              </a>{' '}
               เพื่อร่วมพูดคุยในห้องรีวิว
             </p>
           </div>
@@ -260,15 +296,17 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
             <input
               type="text"
               value={input}
-              onChange={e => setInput(e.target.value)}
-              placeholder="พิมพ์ข้อความ..."
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={e => { setInput(e.target.value); setSendError('') }}
+              onKeyDown={handleKeyDown}
+              placeholder="พิมพ์ข้อความ... (Enter เพื่อส่ง)"
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
               disabled={sending}
+              maxLength={500}
             />
             <button
               type="submit"
               disabled={sending || !input.trim()}
-              className="bg-blue-600 text-white rounded-lg px-3 py-2 hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="bg-blue-600 text-white rounded-lg px-3 py-2 hover:bg-blue-700 disabled:opacity-40 transition-colors shrink-0"
             >
               {sending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -279,7 +317,7 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
           </form>
         )}
         {sendError && (
-          <p className="text-xs text-red-600 mt-1">{sendError}</p>
+          <p className="text-xs text-red-600 mt-1.5">{sendError}</p>
         )}
       </div>
     </div>

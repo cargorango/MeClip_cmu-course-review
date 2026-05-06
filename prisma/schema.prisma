@@ -95,6 +95,9 @@ model Message {
 
   room ReviewRoom @relation(fields: [roomId], references: [id])
   user User       @relation(fields: [userId], references: [id])
+
+  @@index([roomId, createdAt])
+  @@index([roomId, isDeleted, createdAt])
 }
 
 model DifficultyRating {
@@ -109,6 +112,7 @@ model DifficultyRating {
   user   User   @relation(fields: [userId], references: [id])
 
   @@unique([courseId, userId])
+  @@index([courseId])
 }
 
 model Report {
