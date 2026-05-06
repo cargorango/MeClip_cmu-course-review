@@ -128,6 +128,7 @@ export default function CourseSearch({ initialQuery = '', lang = 'th' }: CourseS
             <Link
               key={course.id}
               href={`/course/${course.id}?lang=${lang}`}
+              prefetch={true}
               className="block p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-400 hover:shadow-sm transition-all"
             >
               <div className="flex items-start justify-between gap-2">

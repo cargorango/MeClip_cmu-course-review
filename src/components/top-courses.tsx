@@ -32,6 +32,7 @@ export default function TopCourses({ courses, lang = 'th' }: TopCoursesProps) {
           <Link
             key={course.id}
             href={`/course/${course.id}?lang=${lang}`}
+            prefetch={true}
             className="block p-4 bg-gradient-to-br from-white to-orange-50 border border-orange-100 rounded-xl hover:shadow-md hover:border-orange-300 transition-all"
           >
             <div className="flex items-start gap-2">
