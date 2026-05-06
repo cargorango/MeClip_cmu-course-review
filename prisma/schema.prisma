@@ -66,6 +66,9 @@ model Course {
   code         String   @unique
   name         String
   nameTh       String
+  credits      String   @default("")
+  description  String   @default("")
+  isFreeElective Boolean @default(false)
   facultyId    String
   curriculumId String
   createdAt    DateTime @default(now())

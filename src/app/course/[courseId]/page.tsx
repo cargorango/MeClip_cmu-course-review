@@ -114,7 +114,20 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
             <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
               {curriculumLabel}
             </span>
+            {course.credits && (
+              <span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full font-medium">
+                {lang === 'en' ? 'Credits' : 'หน่วยกิต'}: {course.credits}
+              </span>
+            )}
           </div>
+          {course.description && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                {lang === 'en' ? 'Course Description' : 'คำอธิบายวิชา'}
+              </p>
+              <p className="text-sm text-gray-700 leading-relaxed">{course.description}</p>
+            </div>
+          )}
         </div>
 
         {/* Difficulty rating */}
