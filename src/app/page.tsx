@@ -9,7 +9,7 @@ import LangToggle from '@/components/lang-toggle'
 import Link from 'next/link'
 import { GraduationCap, BookOpen } from 'lucide-react'
 import { auth } from '../../auth'
-import { type Lang, t } from '@/lib/i18n'
+import { translations, type Lang } from '@/lib/i18n'
 import UserMenu, { isAdminRole } from '@/components/user-menu'
 
 interface HomePageProps {
@@ -30,6 +30,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const session = await auth()
   const { courses, freeElectiveCount } = await getHomeData()
   const lang: Lang = searchParams.lang === 'en' ? 'en' : 'th'
+  const tr = translations[lang]
 
   // Top 3 most-reviewed courses
   const coursesWithCount = courses.map(c => ({
@@ -53,7 +54,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <Link href="/" className="flex items-center gap-2">
             <GraduationCap className="w-6 h-6 text-blue-600" />
             <span className="font-bold text-gray-900 text-sm sm:text-base">
-              {t(lang, 'appName')}
+              {tr.appName}
             </span>
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -62,7 +63,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </Suspense>
             {session?.user ? (
               <UserMenu
-                displayName={session.user.displayName ?? session.user.name ?? t(lang, 'profile')}
+                displayName={session.user.displayName ?? session.user.name ?? tr.profile}
                 isAdmin={isAdminRole(session.user.role)}
                 lang={lang}
               />
@@ -71,7 +72,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 href={`/login?lang=${lang}`}
                 className="text-sm font-medium bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
               >
-                {t(lang, 'login')}
+                {tr.login}
               </Link>
             )}
           </div>
@@ -82,10 +83,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         {/* Hero */}
         <div className="text-center space-y-1.5">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-            {t(lang, 'heroTitle')}
+            {tr.heroTitle}
           </h1>
           <p className="text-gray-500 text-sm sm:text-base">
-            {t(lang, 'appDesc')}
+            {tr.appDesc}
           </p>
         </div>
 
@@ -125,7 +126,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         {/* Top courses */}
         {topCourses.length > 0 && (
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <TopCourses courses={topCourses} lang={lang} />
+            <TopCourses
+              courses={topCourses}
+              lang={lang}
+              labels={{ topCourses: tr.topCourses, reviews: tr.reviews }}
+            />
           </div>
         )}
       </main>

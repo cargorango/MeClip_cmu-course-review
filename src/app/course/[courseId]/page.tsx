@@ -8,7 +8,7 @@ import ReviewRoom from '@/components/review-room'
 import FeedbackButton from '@/components/feedback-button'
 import LangToggle from '@/components/lang-toggle'
 import { GraduationCap, ArrowLeft, BookOpen } from 'lucide-react'
-import { type Lang, t } from '@/lib/i18n'
+import { translations, type Lang } from '@/lib/i18n'
 import { Suspense } from 'react'
 import UserMenu, { isAdminRole } from '@/components/user-menu'
 
@@ -21,6 +21,7 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
   const session = await auth()
   const { courseId } = params
   const lang: Lang = searchParams.lang === 'en' ? 'en' : 'th'
+  const tr = translations[lang]
 
   const course = await prisma.course.findUnique({
     where: { id: courseId },
@@ -62,7 +63,7 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
           <Link href={`/?lang=${lang}`} className="flex items-center gap-2">
             <GraduationCap className="w-6 h-6 text-blue-600" />
             <span className="font-bold text-gray-900 text-sm sm:text-base">
-              {t(lang, 'appName')}
+              {tr.appName}
             </span>
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -71,7 +72,7 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
             </Suspense>
             {session?.user ? (
               <UserMenu
-                displayName={session.user.displayName ?? session.user.name ?? t(lang, 'profile')}
+                displayName={session.user.displayName ?? session.user.name ?? tr.profile}
                 isAdmin={isAdminRole(session.user.role)}
                 lang={lang}
               />
@@ -80,7 +81,7 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
                 href={`/login?callbackUrl=/course/${courseId}&lang=${lang}`}
                 className="text-sm font-medium bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
               >
-                {t(lang, 'login')}
+                {tr.login}
               </Link>
             )}
           </div>
@@ -94,7 +95,7 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
           className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-blue-600 bg-white border border-gray-200 px-3 py-2 rounded-lg hover:border-blue-300 transition-all shadow-sm"
         >
           <ArrowLeft className="w-4 h-4" />
-          {t(lang, 'back')}
+          {tr.back}
         </Link>
 
         {/* Course info */}
@@ -136,7 +137,7 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
 
         {/* Difficulty rating */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-          <h2 className="text-base font-semibold text-gray-900 mb-4">{t(lang, 'difficulty')}</h2>
+          <h2 className="text-base font-semibold text-gray-900 mb-4">{tr.difficulty}</h2>
           <DifficultyRating
             courseId={courseId}
             isLoggedIn={!!session?.user}
@@ -150,8 +151,8 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
         {/* Review room */}
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
           <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="text-base font-semibold text-gray-900">{t(lang, 'reviewRoom')}</h2>
-            <p className="text-xs text-gray-500 mt-0.5">{t(lang, 'reviewRoomDesc')}</p>
+            <h2 className="text-base font-semibold text-gray-900">{tr.reviewRoom}</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{tr.reviewRoomDesc}</p>
           </div>
           <ReviewRoom courseId={courseId} isLoggedIn={!!session?.user} />
         </div>

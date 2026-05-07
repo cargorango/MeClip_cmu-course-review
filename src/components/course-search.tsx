@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Search, X } from 'lucide-react'
 import Link from 'next/link'
-import { type Lang, t } from '@/lib/i18n'
+import { translations, type Lang } from '@/lib/i18n'
 
 interface CourseResult {
   id: string
@@ -28,6 +28,7 @@ export default function CourseSearch({ initialQuery = '', lang = 'th' }: CourseS
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tr = translations[lang]
 
   const fetchCourses = useCallback(async (q: string) => {
     setLoading(true)
@@ -112,13 +113,13 @@ export default function CourseSearch({ initialQuery = '', lang = 'th' }: CourseS
       </div>
 
       {loading && (
-        <div className="text-center py-4 text-gray-500 text-sm">{t(lang, 'searching')}</div>
+        <div className="text-center py-4 text-gray-500 text-sm">{tr.searching}</div>
       )}
 
       {!loading && searched && results.length === 0 && (
         <div className="text-center py-8 text-gray-500">
-          <p className="text-base font-medium text-gray-700">{t(lang, 'notFound')}</p>
-          <p className="text-sm mt-1 text-gray-400">{t(lang, 'notFoundSub')}</p>
+          <p className="text-base font-medium text-gray-700">{tr.notFound}</p>
+          <p className="text-sm mt-1 text-gray-400">{tr.notFoundSub}</p>
         </div>
       )}
 
@@ -144,9 +145,9 @@ export default function CourseSearch({ initialQuery = '', lang = 'th' }: CourseS
                       <span className="text-sm font-semibold text-gray-700">{course.averageRating}</span>
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-400">{t(lang, 'noRating')}</span>
+                    <span className="text-xs text-gray-400">{tr.noRating}</span>
                   )}
-                  <p className="text-xs text-gray-400 mt-0.5">{course.totalRatings} {t(lang, 'reviews')}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{course.totalRatings} {tr.reviews}</p>
                 </div>
               </div>
             </Link>

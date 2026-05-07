@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { TrendingUp } from 'lucide-react'
-import { type Lang, t } from '@/lib/i18n'
+import type { Lang } from '@/lib/i18n'
 
 interface TopCourse {
   id: string
@@ -14,9 +14,13 @@ interface TopCourse {
 interface TopCoursesProps {
   courses: TopCourse[]
   lang?: Lang
+  labels: {
+    topCourses: string
+    reviews: string
+  }
 }
 
-export default function TopCourses({ courses, lang = 'th' }: TopCoursesProps) {
+export default function TopCourses({ courses, lang = 'th', labels }: TopCoursesProps) {
   if (courses.length === 0) return null
 
   const medals = ['🥇', '🥈', '🥉']
@@ -25,7 +29,7 @@ export default function TopCourses({ courses, lang = 'th' }: TopCoursesProps) {
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <TrendingUp className="w-4 h-4 text-orange-500" />
-        <h2 className="text-sm font-semibold text-gray-700">{t(lang, 'topCourses')}</h2>
+        <h2 className="text-sm font-semibold text-gray-700">{labels.topCourses}</h2>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {courses.map((course, index) => (
@@ -44,7 +48,7 @@ export default function TopCourses({ courses, lang = 'th' }: TopCoursesProps) {
                   {course.averageRating !== null && (
                     <span className="text-xs text-gray-600">★ {course.averageRating}</span>
                   )}
-                  <span className="text-xs text-gray-400">{course.totalRatings} {t(lang, 'reviews')}</span>
+                  <span className="text-xs text-gray-400">{course.totalRatings} {labels.reviews}</span>
                 </div>
               </div>
             </div>
