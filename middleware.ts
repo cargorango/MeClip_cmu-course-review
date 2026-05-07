@@ -1,5 +1,9 @@
-import { auth } from './auth'
+import NextAuth from 'next-auth'
+import { authConfig } from './auth.config'
 import { NextResponse } from 'next/server'
+
+// Use authConfig (no Prisma) for Edge Runtime compatibility
+const { auth } = NextAuth(authConfig)
 
 export default auth((req) => {
   const { nextUrl, auth: session } = req
