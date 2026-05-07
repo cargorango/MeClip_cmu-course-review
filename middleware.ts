@@ -23,11 +23,12 @@ export default auth((req) => {
     return NextResponse.redirect(new URL(`/login?callbackUrl=${nextUrl.pathname}`, nextUrl))
   }
 
-  // If logged in and profile not complete, redirect to onboarding
+  // If logged in and profile not complete OR status not set, redirect to onboarding
   // (except if already on onboarding, login, or API)
+  const user = session?.user as { isProfileComplete?: boolean; status?: string | null } | undefined
   if (
     isLoggedIn &&
-    !session.user.isProfileComplete &&
+    (!user?.isProfileComplete || !user?.status) &&
     !isOnboarding &&
     !isLogin &&
     !isApi
