@@ -43,7 +43,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   session: { strategy: 'jwt' },
   callbacks: {
-    ...authConfig.callbacks,
+    // Keep authorized callback from authConfig for middleware
+    authorized: authConfig.callbacks!.authorized,
     async jwt({ token, user, account }) {
       if (account && user?.email) {
         const isPlatformManager = user.email === PLATFORM_MANAGER_EMAIL

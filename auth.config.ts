@@ -58,7 +58,8 @@ export const authConfig: NextAuthConfig = {
       }
       return true
     },
-    // Expose token fields to session so middleware can read them
+    // This session callback runs in middleware context (Edge Runtime)
+    // It maps JWT token fields → session.user so middleware can read them
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     session({ session, token }: any) {
       if (token && session.user) {
@@ -66,6 +67,11 @@ export const authConfig: NextAuthConfig = {
         session.user.status = token.status ?? null
       }
       return session
+    },
+    // Pass-through jwt callback — actual logic is in auth.ts
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    jwt({ token }: any) {
+      return token
     },
   },
 }
