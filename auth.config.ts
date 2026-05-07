@@ -58,5 +58,14 @@ export const authConfig: NextAuthConfig = {
       }
       return true
     },
+    // Expose token fields to session so middleware can read them
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    session({ session, token }: any) {
+      if (token && session.user) {
+        session.user.isProfileComplete = token.isProfileComplete ?? false
+        session.user.status = token.status ?? null
+      }
+      return session
+    },
   },
 }
