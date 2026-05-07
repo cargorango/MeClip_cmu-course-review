@@ -5,6 +5,8 @@ import { prisma } from './src/lib/prisma'
 import bcrypt from 'bcryptjs'
 
 export const authConfig: NextAuthConfig = {
+  // Let NextAuth v5 auto-detect the URL on Vercel — no NEXTAUTH_URL needed
+  trustHost: true,
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
