@@ -135,7 +135,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const { error, status } = await requireAdmin()
+  const { error, status, session } = await requireAdmin()
   if (error) return NextResponse.json({ error }, { status })
 
   try {
@@ -146,30 +146,42 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'กรุณาระบุ userId' }, { status: 400 })
     }
 
+    // Prevent deleting yourself
+    if (userId === session!.user.id) {
+      return NextResponse.json({ error: 'ไม่สามารถลบบัญชีของตัวเองได้' }, { status: 400 })
+    }
+
     const user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) {
       return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 })
     }
 
-    // Anonymize messages before deleting user
-    // Messages are retained but sender info is anonymized via isDeleted=false
-    // We update the user to remove personal data but keep the record for message FK
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        email: `deleted_${userId}@deleted.invalid`,
-        displayName: 'ผู้ใช้ที่ถูกลบ',
-        isAnonymous: true,
-      },
-    })
+    // Prevent deleting Platform Manager
+    if (user.role === 'PLATFORM_MANAGER') {
+      return NextResponse.json({ error: 'ไม่สามารถลบ Platform Manager ได้' }, { status: 403 })
+    }
 
-    // Delete auth accounts and sessions
+    // Use a unique deleted email to avoid conflicts
+    const deletedEmail = `deleted_${userId}@deleted.invalid`
+
+    // Delete auth accounts and sessions first
     await prisma.account.deleteMany({ where: { userId } })
     await prisma.session.deleteMany({ where: { userId } })
 
+    // Anonymize user data (soft delete — keep record for message FK integrity)
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        email: deletedEmail,
+        displayName: 'ผู้ใช้ที่ถูกลบ',
+        isAnonymous: true,
+        password: null,
+      },
+    })
+
     return NextResponse.json({ message: 'ลบบัญชีผู้ใช้เรียบร้อย' })
-  } catch (error) {
-    console.error('DELETE /api/admin/users error:', error)
+  } catch (err) {
+    console.error('DELETE /api/admin/users error:', err)
     return NextResponse.json(
       { error: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' },
       { status: 500 }

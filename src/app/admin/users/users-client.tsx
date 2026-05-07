@@ -312,10 +312,10 @@ export default function AdminUsersClient({ isPlatformManager, isOperationsManage
                         )}
 
                         {/* Delete button — hidden for OPERATIONS_MANAGER */}
-                        {!isOperationsManager && (
+                        {!isOperationsManager && !user.email.endsWith('@deleted.invalid') && (
                           <button
                             onClick={() => handleDelete(user.id)}
-                            disabled={!!actionLoading || user.role === 'PLATFORM_MANAGER' || user.role === 'SUPER_ADMIN'}
+                            disabled={!!actionLoading || user.role === 'PLATFORM_MANAGER'}
                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30"
                             title="ลบบัญชี"
                           >
