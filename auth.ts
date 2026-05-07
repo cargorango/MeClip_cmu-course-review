@@ -3,26 +3,55 @@ import { authConfig } from './auth.config'
 import { prisma } from './src/lib/prisma'
 import { Role } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import Credentials from 'next-auth/providers/credentials'
 
 const PLATFORM_MANAGER_EMAIL = 'Patakarawin2547@gmail.com'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  providers: [
+    // Override providers to include Credentials with full Prisma access
+    ...authConfig.providers.filter((p) => {
+      const id = typeof p === 'function' ? p({}).id : (p as { id?: string }).id
+      return id !== 'credentials'
+    }),
+    Credentials({
+      name: 'credentials',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null
+
+        const email = (credentials.email as string).toLowerCase()
+        const password = credentials.password as string
+
+        const user = await prisma.user.findUnique({
+          where: { email },
+          select: { id: true, email: true, displayName: true, password: true },
+        })
+
+        if (!user || !user.password) return null
+
+        const isValid = await bcrypt.compare(password, user.password)
+        if (!isValid) return null
+
+        return { id: user.id, email: user.email, name: user.displayName }
+      },
+    }),
+  ],
   session: { strategy: 'jwt' },
   callbacks: {
     ...authConfig.callbacks,
     async jwt({ token, user, account }) {
-      // On first sign in, user object is available
       if (account && user?.email) {
         const isPlatformManager = user.email === PLATFORM_MANAGER_EMAIL
 
         if (account.provider === 'credentials') {
-          // Credentials login — password already verified in authorize()
-          // user object contains { email, verifiedUserId } set by authorize
           const dbUser = await prisma.user.findUnique({
             where: { email: user.email },
           })
-
           if (!dbUser) return token
 
           token.id = dbUser.id
@@ -33,7 +62,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.yearOfStudy = dbUser.yearOfStudy
           token.isProfileComplete = dbUser.isProfileComplete
         } else {
-          // Google OAuth login
+          // Google OAuth
           const dbUser = await prisma.user.upsert({
             where: { email: user.email },
             update: {},
@@ -45,7 +74,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             },
           })
 
-          // Ensure platform manager role
           if (isPlatformManager && dbUser.role !== Role.PLATFORM_MANAGER) {
             await prisma.user.update({
               where: { email: user.email },
@@ -64,7 +92,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.isProfileComplete = dbUser.isProfileComplete
         }
       } else if (token.id) {
-        // Refresh from DB on every token refresh
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
           select: {
