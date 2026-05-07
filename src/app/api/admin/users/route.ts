@@ -28,8 +28,13 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
 
     const where = q
-      ? { email: { contains: q, mode: 'insensitive' as const } }
-      : {}
+      ? {
+          email: { contains: q, mode: 'insensitive' as const },
+          NOT: { email: { endsWith: '@deleted.invalid' } },
+        }
+      : {
+          NOT: { email: { endsWith: '@deleted.invalid' } },
+        }
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
