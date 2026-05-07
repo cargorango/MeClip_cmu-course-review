@@ -15,6 +15,7 @@ model User {
   id                String      @id @default(cuid())
   email             String      @unique
   displayName       String
+  password          String?     // null for Google OAuth users
   role              Role        @default(STUDENT)
   isAnonymous       Boolean     @default(false)
   status            UserStatus?
