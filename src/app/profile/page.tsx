@@ -89,6 +89,15 @@ export default async function ProfilePage() {
           <div className="text-sm text-gray-500">
             รีวิวแล้ว <span className="font-semibold text-gray-800">{uniqueCoursesReviewed}</span> วิชา
           </div>
+          {user.status && (
+            <div className="text-sm text-gray-500">
+              สถานะ:{' '}
+              <span className="font-semibold text-gray-800">
+                {user.status === 'STUDENT' ? 'นักศึกษา' : user.status === 'TEACHER' ? 'อาจารย์' : 'ศิษย์เก่า'}
+                {user.status === 'STUDENT' && user.yearOfStudy ? ` ปี ${user.yearOfStudy}` : ''}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Edit profile form */}
@@ -97,6 +106,8 @@ export default async function ProfilePage() {
           <ProfileForm
             displayName={user.displayName}
             isAnonymous={user.isAnonymous}
+            status={user.status ?? null}
+            yearOfStudy={user.yearOfStudy ?? null}
           />
         </div>
 

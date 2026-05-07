@@ -12,27 +12,40 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  displayName String
-  role        Role     @default(STUDENT)
-  isAnonymous Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String      @id @default(cuid())
+  email             String      @unique
+  displayName       String
+  role              Role        @default(STUDENT)
+  isAnonymous       Boolean     @default(false)
+  status            UserStatus?
+  yearOfStudy       Int?
+  isProfileComplete Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
-  ratings    DifficultyRating[]
-  messages   Message[]
-  reports    Report[]
-  auditLogs  AuditLog[] @relation("AuditActor")
-  targetLogs AuditLog[] @relation("AuditTarget")
-  accounts   Account[]
-  sessions   Session[]
+  ratings       DifficultyRating[]
+  messages      Message[]
+  reports       Report[]
+  auditLogs     AuditLog[]       @relation("AuditActor")
+  targetLogs    AuditLog[]       @relation("AuditTarget")
+  accounts      Account[]
+  sessions      Session[]
+  courseAudits  CourseAuditLog[]
 }
 
 enum Role {
   STUDENT
   ADMIN
   SUPER_ADMIN
+  PLATFORM_MANAGER
+  SYSTEM_MANAGER
+  OPERATIONS_MANAGER
+}
+
+enum UserStatus {
+  STUDENT
+  TEACHER
+  ALUMNI
 }
 
 model Faculty {
@@ -62,21 +75,33 @@ enum ProgramType {
 }
 
 model Course {
-  id           String   @id @default(cuid())
-  code         String   @unique
-  name         String
-  nameTh       String
-  credits      String   @default("")
-  description  String   @default("")
-  isFreeElective Boolean @default(false)
-  facultyId    String
-  curriculumId String
-  createdAt    DateTime @default(now())
+  id             String   @id @default(cuid())
+  code           String   @unique
+  name           String
+  nameTh         String
+  credits        String   @default("")
+  description    String   @default("")
+  isFreeElective Boolean  @default(false)
+  facultyId      String
+  curriculumId   String
+  createdAt      DateTime @default(now())
 
   faculty    Faculty          @relation(fields: [facultyId], references: [id])
   curriculum Curriculum       @relation(fields: [curriculumId], references: [id])
   ratings    DifficultyRating[]
   reviewRoom ReviewRoom?
+  auditLogs  CourseAuditLog[]
+}
+
+model CourseAuditLog {
+  id        String   @id @default(cuid())
+  courseId  String
+  adminId   String
+  action    String
+  createdAt DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id])
+  admin  User   @relation(fields: [adminId], references: [id])
 }
 
 model ReviewRoom {
@@ -89,12 +114,16 @@ model ReviewRoom {
 }
 
 model Message {
-  id        String   @id @default(cuid())
-  roomId    String
-  userId    String
-  content   String
-  isDeleted Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id                String      @id @default(cuid())
+  roomId            String
+  userId            String
+  content           String
+  isDeleted         Boolean     @default(false)
+  wasAnonymous      Boolean?
+  senderStatus      UserStatus?
+  senderYearOfStudy Int?
+  editedAt          DateTime?
+  createdAt         DateTime    @default(now())
 
   room ReviewRoom @relation(fields: [roomId], references: [id])
   user User       @relation(fields: [userId], references: [id])

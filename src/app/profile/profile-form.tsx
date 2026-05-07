@@ -6,12 +6,22 @@ import { useRouter } from 'next/navigation'
 interface ProfileFormProps {
   displayName: string
   isAnonymous: boolean
+  status: string | null
+  yearOfStudy: number | null
 }
 
-export default function ProfileForm({ displayName, isAnonymous }: ProfileFormProps) {
+const STATUS_OPTIONS = [
+  { value: 'STUDENT', label: 'นักศึกษา' },
+  { value: 'TEACHER', label: 'อาจารย์' },
+  { value: 'ALUMNI', label: 'ศิษย์เก่า' },
+]
+
+export default function ProfileForm({ displayName, isAnonymous, status, yearOfStudy }: ProfileFormProps) {
   const router = useRouter()
   const [name, setName] = useState(displayName)
   const [anonymous, setAnonymous] = useState(isAnonymous)
+  const [selectedStatus, setSelectedStatus] = useState(status ?? '')
+  const [selectedYear, setSelectedYear] = useState(yearOfStudy ? String(yearOfStudy) : '')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
@@ -26,7 +36,12 @@ export default function ProfileForm({ displayName, isAnonymous }: ProfileFormPro
       const res = await fetch('/api/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ displayName: name, isAnonymous: anonymous }),
+        body: JSON.stringify({
+          displayName: name,
+          isAnonymous: anonymous,
+          status: selectedStatus || null,
+          yearOfStudy: selectedStatus === 'STUDENT' && selectedYear ? parseInt(selectedYear) : null,
+        }),
       })
       if (res.ok) {
         setSuccess(true)
@@ -58,12 +73,44 @@ export default function ProfileForm({ displayName, isAnonymous }: ProfileFormPro
         <p className="text-xs text-gray-400">{name.length}/50 ตัวอักษร</p>
       </div>
 
+      {/* Status */}
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-gray-700">สถานะ</label>
+        <select
+          value={selectedStatus}
+          onChange={e => { setSelectedStatus(e.target.value); setSelectedYear('') }}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="">-- ไม่ระบุ --</option>
+          {STATUS_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Year of Study (only for STUDENT) */}
+      {selectedStatus === 'STUDENT' && (
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-700">ชั้นปี</label>
+          <select
+            value={selectedYear}
+            onChange={e => setSelectedYear(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            <option value="">-- ไม่ระบุ --</option>
+            {[1, 2, 3, 4, 5, 6].map(y => (
+              <option key={y} value={String(y)}>ปี {y}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Anonymous mode */}
       <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
         <div>
           <p className="text-sm font-medium text-gray-700">โหมดไม่ระบุตัวตน</p>
           <p className="text-xs text-gray-500 mt-0.5">
-            ข้อความจะแสดงเป็น &quot;ไม่ระบุตัวตน&quot; โดยไม่มีระดับนักรีวิว
+            ข้อความจะแสดงสถานะแทนชื่อ (เช่น &quot;นักศึกษา ปี 3&quot;)
           </p>
         </div>
         <button

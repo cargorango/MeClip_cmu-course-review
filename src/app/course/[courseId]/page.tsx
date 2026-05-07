@@ -7,9 +7,10 @@ import DifficultyRating from '@/components/difficulty-rating'
 import ReviewRoom from '@/components/review-room'
 import FeedbackButton from '@/components/feedback-button'
 import LangToggle from '@/components/lang-toggle'
-import { GraduationCap, ArrowLeft, BookOpen, Settings } from 'lucide-react'
+import { GraduationCap, ArrowLeft, BookOpen } from 'lucide-react'
 import { type Lang, t } from '@/lib/i18n'
 import { Suspense } from 'react'
+import UserMenu, { isAdminRole } from '@/components/user-menu'
 
 interface CoursePageProps {
   params: { courseId: string }
@@ -46,10 +47,12 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
     ? (course.ratings.find(r => r.userId === session.user.id)?.rating ?? null)
     : null
 
-  const programTypeLabel = course.curriculum.programType === 'REGULAR'
+  const programTypeLabel = course.curriculum?.programType === 'REGULAR'
     ? (lang === 'en' ? 'Regular' : 'ภาคปกติ')
     : (lang === 'en' ? 'International' : 'นานาชาติ')
-  const curriculumLabel = `${programTypeLabel} ${course.curriculum.curriculumYear}`
+  const curriculumLabel = course.curriculum
+    ? `${programTypeLabel} ${course.curriculum.curriculumYear}`
+    : null
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -67,23 +70,11 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
               <LangToggle currentLang={lang} />
             </Suspense>
             {session?.user ? (
-              <div className="flex items-center gap-1.5">
-                <Link
-                  href={`/profile?lang=${lang}`}
-                  className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
-                >
-                  {session.user.displayName ?? session.user.name ?? t(lang, 'profile')}
-                </Link>
-                {(session.user.role === 'ADMIN' || session.user.role === 'SUPER_ADMIN') && (
-                  <Link
-                    href="/admin"
-                    className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="จัดการระบบ"
-                  >
-                    <Settings className="w-4 h-4" />
-                  </Link>
-                )}
-              </div>
+              <UserMenu
+                displayName={session.user.displayName ?? session.user.name ?? t(lang, 'profile')}
+                isAdmin={isAdminRole(session.user.role)}
+                lang={lang}
+              />
             ) : (
               <Link
                 href={`/login?callbackUrl=/course/${courseId}&lang=${lang}`}
@@ -122,9 +113,11 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
             <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
               {course.faculty.nameTh}
             </span>
-            <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
-              {curriculumLabel}
-            </span>
+            {curriculumLabel && (
+              <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
+                {curriculumLabel}
+              </span>
+            )}
             {course.credits && (
               <span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full font-medium">
                 {lang === 'en' ? 'Credits' : 'หน่วยกิต'}: {course.credits}

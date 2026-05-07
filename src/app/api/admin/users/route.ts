@@ -76,17 +76,10 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { userId, displayName } = body
+    const { userId, displayName, email } = body
 
     if (!userId) {
       return NextResponse.json({ error: 'กรุณาระบุ userId' }, { status: 400 })
-    }
-
-    if (!validateDisplayName(displayName)) {
-      return NextResponse.json(
-        { error: 'ชื่อต้องมีความยาว 1-50 ตัวอักษร' },
-        { status: 400 }
-      )
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId } })
@@ -94,9 +87,39 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 })
     }
 
+    // Build update data
+    const updateData: { displayName?: string; email?: string } = {}
+
+    if (displayName !== undefined) {
+      if (!validateDisplayName(displayName)) {
+        return NextResponse.json(
+          { error: 'ชื่อต้องมีความยาว 1-50 ตัวอักษร' },
+          { status: 400 }
+        )
+      }
+      updateData.displayName = displayName.trim()
+    }
+
+    if (email !== undefined) {
+      const trimmedEmail = email.trim().toLowerCase()
+      if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+        return NextResponse.json({ error: 'รูปแบบ Email ไม่ถูกต้อง' }, { status: 400 })
+      }
+      // Check email uniqueness
+      const existing = await prisma.user.findUnique({ where: { email: trimmedEmail } })
+      if (existing && existing.id !== userId) {
+        return NextResponse.json({ error: 'Email นี้ถูกใช้งานแล้ว' }, { status: 409 })
+      }
+      updateData.email = trimmedEmail
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'ไม่มีข้อมูลที่ต้องการอัปเดต' }, { status: 400 })
+    }
+
     const updated = await prisma.user.update({
       where: { id: userId },
-      data: { displayName: displayName.trim() },
+      data: updateData,
       select: { id: true, email: true, displayName: true, role: true },
     })
 

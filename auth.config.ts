@@ -16,8 +16,9 @@ export const authConfig: NextAuthConfig = {
       const isLoggedIn = !!auth?.user
       const isOnAdminPage = nextUrl.pathname.startsWith('/admin')
       const isOnProfilePage = nextUrl.pathname.startsWith('/profile')
+      const isOnOnboardingPage = nextUrl.pathname.startsWith('/onboarding')
 
-      if (isOnAdminPage || isOnProfilePage) {
+      if (isOnAdminPage || isOnProfilePage || isOnOnboardingPage) {
         if (isLoggedIn) return true
         return false // Redirect to login
       }

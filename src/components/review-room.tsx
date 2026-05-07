@@ -1,13 +1,15 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, Loader2 } from 'lucide-react'
+import { Send, Loader2, Pencil, Check, X } from 'lucide-react'
 import { getSupabaseClient } from '@/lib/supabase-client'
 
 interface Message {
   id: string
   content: string
   createdAt: string
+  editedAt: string | null
+  isOwn: boolean
   sender: {
     displayName: string
     reviewerLevel: string | null
@@ -35,6 +37,10 @@ function formatTime(iso: string) {
   })
 }
 
+function isWithin24Hours(iso: string): boolean {
+  return (Date.now() - new Date(iso).getTime()) < 24 * 60 * 60 * 1000
+}
+
 export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
@@ -44,16 +50,13 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
   const [connected, setConnected] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState('')
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const topRef = useRef<HTMLDivElement>(null)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const reconnectAttempts = useRef(0)
-  const messagesRef = useRef<Message[]>([])
-
-  // Keep ref in sync for use inside callbacks
-  useEffect(() => {
-    messagesRef.current = messages
-  }, [messages])
 
   const fetchMessages = useCallback(async (cursor?: string) => {
     const params = new URLSearchParams({ courseId, limit: '50' })
@@ -80,7 +83,7 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
       .finally(() => setInitialLoading(false))
   }, [fetchMessages, scrollToBottom])
 
-  // Supabase Realtime — append new messages without full refetch
+  // Supabase Realtime
   useEffect(() => {
     const supabase = getSupabaseClient()
 
@@ -108,9 +111,7 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'Message' },
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        (_payload) => {
-          // Refetch latest messages to get formatted sender info
+        () => {
           fetchMessages()
             .then(data => {
               setMessages(data.messages)
@@ -123,7 +124,6 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           setConnected(true)
-          reconnectAttempts.current = 0
           stopPolling()
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           setConnected(false)
@@ -137,7 +137,7 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
     }
   }, [courseId, fetchMessages, scrollToBottom])
 
-  // Load more (scroll up pagination)
+  // Load more
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore) return
     setLoadingMore(true)
@@ -152,7 +152,6 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
     }
   }, [nextCursor, loadingMore, fetchMessages])
 
-  // Intersection observer for auto-load on scroll up
   useEffect(() => {
     if (!topRef.current || !nextCursor) return
     const observer = new IntersectionObserver(
@@ -171,12 +170,13 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
     setSending(true)
     setSendError('')
 
-    // Optimistic UI — add temp message immediately
     const tempId = `temp-${Date.now()}`
     const tempMsg: Message = {
       id: tempId,
       content: trimmed,
       createdAt: new Date().toISOString(),
+      editedAt: null,
+      isOwn: true,
       sender: { displayName: 'คุณ', reviewerLevel: null },
     }
     setMessages(prev => [...prev, tempMsg])
@@ -191,13 +191,11 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
       })
 
       if (res.ok) {
-        // Replace temp message with real data from server
         const data = await fetchMessages()
         setMessages(data.messages)
         setNextCursor(data.nextCursor)
         scrollToBottom()
       } else {
-        // Remove temp message on error
         setMessages(prev => prev.filter(m => m.id !== tempId))
         setInput(trimmed)
         const data = await res.json()
@@ -209,6 +207,53 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
       setSendError('เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
       setSending(false)
+    }
+  }
+
+  const startEdit = (msg: Message) => {
+    setEditingId(msg.id)
+    setEditContent(msg.content)
+    setEditError('')
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditContent('')
+    setEditError('')
+  }
+
+  const handleEdit = async (messageId: string) => {
+    const trimmed = editContent.trim()
+    if (!trimmed || editLoading) return
+
+    setEditLoading(true)
+    setEditError('')
+
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId, content: trimmed }),
+      })
+
+      if (res.ok) {
+        // Update message in local state
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === messageId
+              ? { ...m, content: trimmed, editedAt: new Date().toISOString() }
+              : m
+          )
+        )
+        cancelEdit()
+      } else {
+        const data = await res.json()
+        setEditError(data.error ?? 'เกิดข้อผิดพลาด')
+      }
+    } catch {
+      setEditError('เกิดข้อผิดพลาด กรุณาลองใหม่')
+    } finally {
+      setEditLoading(false)
     }
   }
 
@@ -259,7 +304,7 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
           </div>
         ) : (
           [...messages].reverse().map(msg => (
-            <div key={msg.id} className="flex flex-col gap-0.5">
+            <div key={msg.id} className="flex flex-col gap-0.5 group">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium text-gray-800">
                   {msg.sender.displayName}
@@ -270,10 +315,59 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
                   </span>
                 )}
                 <span className="text-xs text-gray-400 ml-auto">{formatTime(msg.createdAt)}</span>
+                {msg.editedAt && (
+                  <span className="text-xs text-gray-400">(แก้ไขแล้ว)</span>
+                )}
+                {/* Edit button — only for own messages within 24h */}
+                {msg.isOwn && !msg.id.startsWith('temp-') && isWithin24Hours(msg.createdAt) && editingId !== msg.id && (
+                  <button
+                    onClick={() => startEdit(msg)}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-blue-600 rounded transition-all"
+                    title="แก้ไขข้อความ"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                )}
               </div>
-              <p className={`text-sm text-gray-700 rounded-lg px-3 py-2 leading-relaxed ${msg.id.startsWith('temp-') ? 'bg-blue-50 opacity-70' : 'bg-gray-50'}`}>
-                {msg.content}
-              </p>
+
+              {editingId === msg.id ? (
+                <div className="space-y-1.5">
+                  <input
+                    type="text"
+                    value={editContent}
+                    onChange={e => setEditContent(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleEdit(msg.id)
+                      if (e.key === 'Escape') cancelEdit()
+                    }}
+                    maxLength={500}
+                    className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                  />
+                  {editError && <p className="text-xs text-red-600">{editError}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEdit(msg.id)}
+                      disabled={editLoading || !editContent.trim()}
+                      className="flex items-center gap-1 text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                    >
+                      {editLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                      บันทึก
+                    </button>
+                    <button
+                      onClick={cancelEdit}
+                      className="flex items-center gap-1 text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                      ยกเลิก
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className={`text-sm text-gray-700 rounded-lg px-3 py-2 leading-relaxed ${msg.id.startsWith('temp-') ? 'bg-blue-50 opacity-70' : 'bg-gray-50'}`}>
+                  {msg.content}
+                </p>
+              )}
             </div>
           ))
         )}

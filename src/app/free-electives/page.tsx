@@ -7,6 +7,7 @@ import FreeElectiveSearch from '@/components/free-elective-search'
 import FeedbackButton from '@/components/feedback-button'
 import { GraduationCap, ArrowLeft, BookOpen } from 'lucide-react'
 import { type Lang } from '@/lib/i18n'
+import UserMenu, { isAdminRole } from '@/components/user-menu'
 
 interface PageProps {
   searchParams: { lang?: string; q?: string }
@@ -49,9 +50,11 @@ export default async function FreeElectivesPage({ searchParams }: PageProps) {
               <LangToggle currentLang={lang} />
             </Suspense>
             {session?.user ? (
-              <Link href={`/profile?lang=${lang}`} className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
-                {session.user.displayName ?? session.user.name ?? 'โปรไฟล์'}
-              </Link>
+              <UserMenu
+                displayName={session.user.displayName ?? session.user.name ?? 'โปรไฟล์'}
+                isAdmin={isAdminRole(session.user.role)}
+                lang={lang}
+              />
             ) : (
               <Link href={`/login?lang=${lang}`} className="text-sm font-medium bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors">
                 {lang === 'en' ? 'Sign In' : 'เข้าสู่ระบบ'}

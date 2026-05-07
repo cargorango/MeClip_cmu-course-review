@@ -8,6 +8,41 @@ export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 50
 
+const STATUS_LABELS: Record<string, string> = {
+  STUDENT: 'นักศึกษา',
+  TEACHER: 'อาจารย์',
+  ALUMNI: 'ศิษย์เก่า',
+}
+
+function getSenderLabel(msg: {
+  wasAnonymous: boolean | null
+  senderStatus: string | null
+  senderYearOfStudy: number | null
+  user: { isAnonymous: boolean; displayName: string; ratings: { courseId: string }[] }
+}): { displayName: string; reviewerLevel: string | null; statusLabel: string | null } {
+  const isAnon = msg.wasAnonymous ?? msg.user.isAnonymous
+
+  if (isAnon) {
+    // Show status snapshot instead of name
+    let statusLabel: string | null = null
+    if (msg.senderStatus) {
+      const base = STATUS_LABELS[msg.senderStatus] ?? msg.senderStatus
+      if (msg.senderStatus === 'STUDENT' && msg.senderYearOfStudy) {
+        statusLabel = `${base} ปี ${msg.senderYearOfStudy}`
+      } else {
+        statusLabel = base
+      }
+    } else {
+      statusLabel = 'ไม่ระบุตัวตน'
+    }
+    return { displayName: statusLabel, reviewerLevel: null, statusLabel }
+  }
+
+  const uniqueCoursesReviewed = new Set(msg.user.ratings.map(r => r.courseId)).size
+  const reviewerLevel = calculateReviewerLevel(uniqueCoursesReviewed)
+  return { displayName: msg.user.displayName, reviewerLevel, statusLabel: null }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -16,22 +51,17 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') ?? '50'), PAGE_SIZE)
 
     if (!courseId) {
-      return NextResponse.json(
-        { error: 'กรุณาระบุ courseId' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'กรุณาระบุ courseId' }, { status: 400 })
     }
 
-    // Find the review room for this course
-    const reviewRoom = await prisma.reviewRoom.findUnique({
-      where: { courseId },
-    })
+    const session = await auth()
+    const currentUserId = session?.user?.id ?? null
 
+    const reviewRoom = await prisma.reviewRoom.findUnique({ where: { courseId } })
     if (!reviewRoom) {
       return NextResponse.json({ messages: [], nextCursor: null })
     }
 
-    // Fetch messages with pagination
     const messages = await prisma.message.findMany({
       where: {
         roomId: reviewRoom.id,
@@ -39,7 +69,7 @@ export async function GET(request: NextRequest) {
         ...(cursor ? { id: { lt: cursor } } : {}),
       },
       orderBy: { createdAt: 'desc' },
-      take: limit + 1, // fetch one extra to determine if there's a next page
+      take: limit + 1,
       include: {
         user: {
           select: {
@@ -57,30 +87,30 @@ export async function GET(request: NextRequest) {
     const nextCursor = hasMore ? pageMessages[pageMessages.length - 1].id : null
 
     const formattedMessages = pageMessages.map(msg => {
-      const uniqueCoursesReviewed = new Set(msg.user.ratings.map(r => r.courseId)).size
-      const reviewerLevel = calculateReviewerLevel(uniqueCoursesReviewed)
+      const { displayName, reviewerLevel } = getSenderLabel({
+        wasAnonymous: msg.wasAnonymous,
+        senderStatus: msg.senderStatus,
+        senderYearOfStudy: msg.senderYearOfStudy,
+        user: msg.user,
+      })
 
       return {
         id: msg.id,
         content: msg.content,
         createdAt: msg.createdAt.toISOString(),
+        editedAt: msg.editedAt?.toISOString() ?? null,
+        isOwn: msg.user.id === currentUserId,
         sender: {
-          displayName: msg.user.isAnonymous ? 'ไม่ระบุตัวตน' : msg.user.displayName,
-          reviewerLevel: msg.user.isAnonymous ? null : reviewerLevel,
+          displayName,
+          reviewerLevel,
         },
       }
     })
 
-    return NextResponse.json({
-      messages: formattedMessages,
-      nextCursor,
-    })
+    return NextResponse.json({ messages: formattedMessages, nextCursor })
   } catch (error) {
     console.error('GET /api/messages error:', error)
-    return NextResponse.json(
-      { error: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' }, { status: 500 })
   }
 }
 
@@ -88,55 +118,46 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth()
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'กรุณาเข้าสู่ระบบก่อน' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบก่อน' }, { status: 401 })
     }
 
     const body = await request.json()
     const { courseId, content } = body
 
-    // Validate content
     if (!content || !content.trim()) {
-      return NextResponse.json(
-        { error: 'กรุณากรอกข้อความ' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'กรุณากรอกข้อความ' }, { status: 400 })
     }
 
-    // Check profanity
     if (containsProfanity(content)) {
-      return NextResponse.json(
-        { error: 'ข้อความมีคำที่ไม่เหมาะสม กรุณาแก้ไขและส่งใหม่' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'ข้อความมีคำที่ไม่เหมาะสม กรุณาแก้ไขและส่งใหม่' }, { status: 400 })
     }
 
-    // Check course exists
-    const course = await prisma.course.findUnique({
-      where: { id: courseId },
-    })
+    const course = await prisma.course.findUnique({ where: { id: courseId } })
     if (!course) {
-      return NextResponse.json(
-        { error: 'ไม่พบกระบวนวิชา' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'ไม่พบกระบวนวิชา' }, { status: 404 })
     }
 
-    // Get or create review room (one per course)
+    // Get sender's current profile for snapshot
+    const sender = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { isAnonymous: true, status: true, yearOfStudy: true },
+    })
+
     const reviewRoom = await prisma.reviewRoom.upsert({
       where: { courseId },
       update: {},
       create: { courseId },
     })
 
-    // Create message
     const message = await prisma.message.create({
       data: {
         roomId: reviewRoom.id,
         userId: session.user.id,
         content: content.trim(),
+        // Snapshot at send time
+        wasAnonymous: sender?.isAnonymous ?? false,
+        senderStatus: sender?.status ?? null,
+        senderYearOfStudy: sender?.yearOfStudy ?? null,
       },
     })
 
@@ -147,9 +168,67 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('POST /api/messages error:', error)
-    return NextResponse.json(
-      { error: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบก่อน' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { messageId, content } = body
+
+    if (!messageId) {
+      return NextResponse.json({ error: 'กรุณาระบุ messageId' }, { status: 400 })
+    }
+
+    if (!content || !content.trim()) {
+      return NextResponse.json({ error: 'กรุณากรอกข้อความ' }, { status: 400 })
+    }
+
+    if (containsProfanity(content)) {
+      return NextResponse.json({ error: 'ข้อความมีคำที่ไม่เหมาะสม กรุณาแก้ไขและส่งใหม่' }, { status: 400 })
+    }
+
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
+      select: { id: true, userId: true, createdAt: true, isDeleted: true },
+    })
+
+    if (!message || message.isDeleted) {
+      return NextResponse.json({ error: 'ไม่พบข้อความ' }, { status: 404 })
+    }
+
+    // Only owner can edit
+    if (message.userId !== session.user.id) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขข้อความนี้' }, { status: 403 })
+    }
+
+    // Only within 24 hours
+    const hoursSinceCreated = (Date.now() - message.createdAt.getTime()) / (1000 * 60 * 60)
+    if (hoursSinceCreated > 24) {
+      return NextResponse.json({ error: 'ไม่สามารถแก้ไขข้อความที่เกิน 24 ชั่วโมงได้' }, { status: 403 })
+    }
+
+    const updated = await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        content: content.trim(),
+        editedAt: new Date(),
+      },
+    })
+
+    return NextResponse.json({
+      id: updated.id,
+      content: updated.content,
+      editedAt: updated.editedAt?.toISOString() ?? null,
+    })
+  } catch (error) {
+    console.error('PATCH /api/messages error:', error)
+    return NextResponse.json({ error: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' }, { status: 500 })
   }
 }
