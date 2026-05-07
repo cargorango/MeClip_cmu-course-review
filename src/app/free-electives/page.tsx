@@ -9,6 +9,7 @@ import { GraduationCap, ArrowLeft, BookOpen } from 'lucide-react'
 import { type Lang } from '@/lib/i18n'
 import UserMenu from '@/components/user-menu'
 import { isAdminRole } from '@/lib/roles'
+import { requireCompleteProfile } from '@/lib/check-onboarding'
 
 interface PageProps {
   searchParams: { lang?: string; q?: string }
@@ -16,6 +17,7 @@ interface PageProps {
 
 export default async function FreeElectivesPage({ searchParams }: PageProps) {
   const session = await auth()
+  await requireCompleteProfile()
   const lang: Lang = searchParams.lang === 'en' ? 'en' : 'th'
   const q = searchParams.q ?? ''
 

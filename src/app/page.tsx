@@ -12,6 +12,7 @@ import { auth } from '../../auth'
 import { translations, type Lang } from '@/lib/i18n'
 import UserMenu from '@/components/user-menu'
 import { isAdminRole } from '@/lib/roles'
+import { requireCompleteProfile } from '@/lib/check-onboarding'
 
 interface HomePageProps {
   searchParams: { q?: string; lang?: string }
@@ -29,6 +30,10 @@ async function getHomeData() {
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const session = await auth()
+
+  // Check DB directly — redirect to onboarding if profile incomplete
+  await requireCompleteProfile()
+
   const { courses, freeElectiveCount } = await getHomeData()
   const lang: Lang = searchParams.lang === 'en' ? 'en' : 'th'
   const tr = translations[lang]

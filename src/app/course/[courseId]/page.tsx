@@ -12,6 +12,7 @@ import { translations, type Lang } from '@/lib/i18n'
 import { Suspense } from 'react'
 import UserMenu from '@/components/user-menu'
 import { isAdminRole } from '@/lib/roles'
+import { requireCompleteProfile } from '@/lib/check-onboarding'
 
 interface CoursePageProps {
   params: { courseId: string }
@@ -20,6 +21,7 @@ interface CoursePageProps {
 
 export default async function CoursePage({ params, searchParams }: CoursePageProps) {
   const session = await auth()
+  await requireCompleteProfile()
   const { courseId } = params
   const lang: Lang = searchParams.lang === 'en' ? 'en' : 'th'
   const tr = translations[lang]
