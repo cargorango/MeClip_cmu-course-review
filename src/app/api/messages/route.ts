@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { courseId, content } = body
+    const { courseId, content, isAnonymous } = body
 
     if (!content || !content.trim()) {
       return NextResponse.json({ error: 'กรุณากรอกข้อความ' }, { status: 400 })
@@ -143,6 +143,10 @@ export async function POST(request: NextRequest) {
       select: { isAnonymous: true, status: true, yearOfStudy: true },
     })
 
+    // Use isAnonymous from request body (snapshot at send time)
+    // Falls back to profile setting if not provided
+    const wasAnonymous = typeof isAnonymous === 'boolean' ? isAnonymous : (sender?.isAnonymous ?? false)
+
     const reviewRoom = await prisma.reviewRoom.upsert({
       where: { courseId },
       update: {},
@@ -154,8 +158,8 @@ export async function POST(request: NextRequest) {
         roomId: reviewRoom.id,
         userId: session.user.id,
         content: content.trim(),
-        // Snapshot at send time
-        wasAnonymous: sender?.isAnonymous ?? false,
+        // Snapshot at send time — locked forever
+        wasAnonymous,
         senderStatus: sender?.status ?? null,
         senderYearOfStudy: sender?.yearOfStudy ?? null,
       },

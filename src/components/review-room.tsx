@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, Loader2, Pencil, Check, X } from 'lucide-react'
+import { Send, Loader2, Pencil, Check, X, EyeOff, Eye } from 'lucide-react'
 import { getSupabaseClient } from '@/lib/supabase-client'
 
 interface Message {
@@ -54,6 +54,7 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
   const [editContent, setEditContent] = useState('')
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState('')
+  const [isAnonymous, setIsAnonymous] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const topRef = useRef<HTMLDivElement>(null)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -69,6 +70,15 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
   const scrollToBottom = useCallback(() => {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 80)
   }, [])
+
+  // Load anonymous preference from profile
+  useEffect(() => {
+    if (!isLoggedIn) return
+    fetch('/api/profile')
+      .then(r => r.json())
+      .then(d => { if (typeof d.isAnonymous === 'boolean') setIsAnonymous(d.isAnonymous) })
+      .catch(() => {})
+  }, [isLoggedIn])
 
   // Initial load
   useEffect(() => {
@@ -177,7 +187,7 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
       createdAt: new Date().toISOString(),
       editedAt: null,
       isOwn: true,
-      sender: { displayName: 'คุณ', reviewerLevel: null },
+      sender: { displayName: isAnonymous ? 'ไม่ระบุตัวตน' : 'คุณ', reviewerLevel: null },
     }
     setMessages(prev => [...prev, tempMsg])
     setInput('')
@@ -187,7 +197,7 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
       const res = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ courseId, content: trimmed }),
+        body: JSON.stringify({ courseId, content: trimmed, isAnonymous }),
       })
 
       if (res.ok) {
@@ -237,7 +247,6 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
       })
 
       if (res.ok) {
-        // Update message in local state
         setMessages(prev =>
           prev.map(m =>
             m.id === messageId
@@ -318,7 +327,6 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
                 {msg.editedAt && (
                   <span className="text-xs text-gray-400">(แก้ไขแล้ว)</span>
                 )}
-                {/* Edit button — only for own messages within 24h */}
                 {msg.isOwn && !msg.id.startsWith('temp-') && isWithin24Hours(msg.createdAt) && editingId !== msg.id && (
                   <button
                     onClick={() => startEdit(msg)}
@@ -375,7 +383,7 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
       </div>
 
       {/* Input */}
-      <div className="border-t border-gray-200 p-3">
+      <div className="border-t border-gray-200 p-3 space-y-2">
         {!isLoggedIn ? (
           <div className="text-center py-2">
             <p className="text-sm text-gray-500">
@@ -386,29 +394,53 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
             </p>
           </div>
         ) : (
-          <form onSubmit={handleSend} className="flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={e => { setInput(e.target.value); setSendError('') }}
-              onKeyDown={handleKeyDown}
-              placeholder="พิมพ์ข้อความ... (Enter เพื่อส่ง)"
-              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
-              disabled={sending}
-              maxLength={500}
-            />
-            <button
-              type="submit"
-              disabled={sending || !input.trim()}
-              className="bg-blue-600 text-white rounded-lg px-3 py-2 hover:bg-blue-700 disabled:opacity-40 transition-colors shrink-0"
-            >
-              {sending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-            </button>
-          </form>
+          <>
+            {/* Anonymous toggle */}
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs text-gray-500 flex items-center gap-1">
+                {isAnonymous ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                {isAnonymous ? 'ส่งแบบไม่ระบุตัวตน (แสดงสถานะแทนชื่อ)' : 'ส่งแบบระบุตัวตน'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsAnonymous(v => !v)}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                  isAnonymous ? 'bg-gray-600' : 'bg-gray-300'
+                }`}
+                aria-label="toggle anonymous mode"
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                    isAnonymous ? 'translate-x-4.5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <form onSubmit={handleSend} className="flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={e => { setInput(e.target.value); setSendError('') }}
+                onKeyDown={handleKeyDown}
+                placeholder={isAnonymous ? 'พิมพ์ข้อความ (ไม่ระบุตัวตน)...' : 'พิมพ์ข้อความ... (Enter เพื่อส่ง)'}
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                disabled={sending}
+                maxLength={500}
+              />
+              <button
+                type="submit"
+                disabled={sending || !input.trim()}
+                className="bg-blue-600 text-white rounded-lg px-3 py-2 hover:bg-blue-700 disabled:opacity-40 transition-colors shrink-0"
+              >
+                {sending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </button>
+            </form>
+          </>
         )}
         {sendError && (
           <p className="text-xs text-red-600 mt-1.5">{sendError}</p>
