@@ -3,44 +3,38 @@ import { auth } from '../../../../auth'
 import { prisma } from '@/lib/prisma'
 import { calculateReviewerLevel } from '@/lib/reviewer-level'
 import { containsProfanity } from '@/lib/profanity'
+import { formatStatus } from '@/lib/status-formatter'
 
 export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 50
 
-const STATUS_LABELS: Record<string, string> = {
-  STUDENT: 'นักศึกษา',
-  TEACHER: 'อาจารย์',
-  ALUMNI: 'ศิษย์เก่า',
-}
-
 function getSenderLabel(msg: {
   wasAnonymous: boolean | null
   senderStatus: string | null
   senderYearOfStudy: number | null
+  senderDegreeLevel: string | null
+  senderFaculty: string | null
+  senderAlumniYear: number | null
   user: { isAnonymous: boolean; displayName: string; ratings: { courseId: string }[] }
-}): { displayName: string; reviewerLevel: string | null; statusLabel: string | null } {
+}): { displayName: string; reviewerLevel: string | null } {
   const isAnon = msg.wasAnonymous ?? msg.user.isAnonymous
 
   if (isAnon) {
-    // Show status snapshot instead of name
-    let statusLabel: string | null = null
-    if (msg.senderStatus) {
-      const base = STATUS_LABELS[msg.senderStatus] ?? msg.senderStatus
-      if (msg.senderStatus === 'STUDENT' && msg.senderYearOfStudy) {
-        statusLabel = `${base} ปี ${msg.senderYearOfStudy}`
-      } else {
-        statusLabel = base
-      }
-    } else {
-      statusLabel = 'ไม่ระบุตัวตน'
-    }
-    return { displayName: statusLabel, reviewerLevel: null, statusLabel }
+    // Use Status Formatter with snapshot fields for anonymous display
+    const statusLabel = formatStatus({
+      status: msg.senderStatus,
+      degreeLevel: msg.senderDegreeLevel,
+      yearOfStudy: msg.senderYearOfStudy,
+      faculty: msg.senderFaculty,
+      alumniYear: msg.senderAlumniYear,
+    })
+    return { displayName: statusLabel, reviewerLevel: null }
   }
 
   const uniqueCoursesReviewed = new Set(msg.user.ratings.map(r => r.courseId)).size
   const reviewerLevel = calculateReviewerLevel(uniqueCoursesReviewed)
-  return { displayName: msg.user.displayName, reviewerLevel, statusLabel: null }
+  return { displayName: msg.user.displayName, reviewerLevel }
 }
 
 export async function GET(request: NextRequest) {
@@ -91,6 +85,9 @@ export async function GET(request: NextRequest) {
         wasAnonymous: msg.wasAnonymous,
         senderStatus: msg.senderStatus,
         senderYearOfStudy: msg.senderYearOfStudy,
+        senderDegreeLevel: msg.senderDegreeLevel,
+        senderFaculty: msg.senderFaculty,
+        senderAlumniYear: msg.senderAlumniYear,
         user: msg.user,
       })
 
@@ -137,14 +134,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่พบกระบวนวิชา' }, { status: 404 })
     }
 
-    // Get sender's current profile for snapshot
+    // Get sender's current profile for snapshot (including new fields)
     const sender = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { isAnonymous: true, status: true, yearOfStudy: true },
+      select: {
+        isAnonymous: true,
+        status: true,
+        yearOfStudy: true,
+        degreeLevel: true,
+        faculty: true,
+        alumniYear: true,
+      },
     })
 
     // Use isAnonymous from request body (snapshot at send time)
-    // Falls back to profile setting if not provided
     const wasAnonymous = typeof isAnonymous === 'boolean' ? isAnonymous : (sender?.isAnonymous ?? false)
 
     const reviewRoom = await prisma.reviewRoom.upsert({
@@ -162,6 +165,9 @@ export async function POST(request: NextRequest) {
         wasAnonymous,
         senderStatus: sender?.status ?? null,
         senderYearOfStudy: sender?.yearOfStudy ?? null,
+        senderDegreeLevel: sender?.degreeLevel ?? null,
+        senderFaculty: sender?.faculty ?? null,
+        senderAlumniYear: sender?.alumniYear ?? null,
       },
     })
 
@@ -207,12 +213,10 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่พบข้อความ' }, { status: 404 })
     }
 
-    // Only owner can edit
     if (message.userId !== session.user.id) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขข้อความนี้' }, { status: 403 })
     }
 
-    // Only within 24 hours
     const hoursSinceCreated = (Date.now() - message.createdAt.getTime()) / (1000 * 60 * 60)
     if (hoursSinceCreated > 24) {
       return NextResponse.json({ error: 'ไม่สามารถแก้ไขข้อความที่เกิน 24 ชั่วโมงได้' }, { status: 403 })

@@ -12,17 +12,20 @@ datasource db {
 }
 
 model User {
-  id                String      @id @default(cuid())
-  email             String      @unique
+  id                String       @id @default(cuid())
+  email             String       @unique
   displayName       String
-  password          String?     // null for Google OAuth users
-  role              Role        @default(STUDENT)
-  isAnonymous       Boolean     @default(false)
+  password          String?      // null for Google OAuth users
+  role              Role         @default(STUDENT)
+  isAnonymous       Boolean      @default(false)
   status            UserStatus?
   yearOfStudy       Int?
-  isProfileComplete Boolean     @default(false)
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  degreeLevel       DegreeLevel? // new: ระดับปริญญา (นักศึกษา)
+  faculty           String?      // new: คณะ (อาจารย์)
+  alumniYear        Int?         // new: รุ่นที่จบ (ศิษย์เก่า)
+  isProfileComplete Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   ratings       DifficultyRating[]
   messages      Message[]
@@ -47,6 +50,12 @@ enum UserStatus {
   STUDENT
   TEACHER
   ALUMNI
+}
+
+enum DegreeLevel {
+  BACHELOR
+  MASTER
+  DOCTORAL
 }
 
 model Faculty {
@@ -115,16 +124,19 @@ model ReviewRoom {
 }
 
 model Message {
-  id                String      @id @default(cuid())
-  roomId            String
-  userId            String
-  content           String
-  isDeleted         Boolean     @default(false)
-  wasAnonymous      Boolean?
-  senderStatus      UserStatus?
-  senderYearOfStudy Int?
-  editedAt          DateTime?
-  createdAt         DateTime    @default(now())
+  id                  String       @id @default(cuid())
+  roomId              String
+  userId              String
+  content             String
+  isDeleted           Boolean      @default(false)
+  wasAnonymous        Boolean?
+  senderStatus        UserStatus?
+  senderYearOfStudy   Int?
+  senderDegreeLevel   DegreeLevel? // new: snapshot ระดับปริญญา ณ เวลาส่ง
+  senderFaculty       String?      // new: snapshot คณะ ณ เวลาส่ง
+  senderAlumniYear    Int?         // new: snapshot รุ่นที่จบ ณ เวลาส่ง
+  editedAt            DateTime?
+  createdAt           DateTime     @default(now())
 
   room ReviewRoom @relation(fields: [roomId], references: [id])
   user User       @relation(fields: [userId], references: [id])

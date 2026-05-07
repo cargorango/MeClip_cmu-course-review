@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { auth, signOut } from '../../../auth'
 import { prisma } from '@/lib/prisma'
 import { calculateReviewerLevel } from '@/lib/reviewer-level'
+import { formatStatus } from '@/lib/status-formatter'
 import Link from 'next/link'
 import { GraduationCap, LogOut, User } from 'lucide-react'
 import ProfileForm from './profile-form'
@@ -44,6 +45,16 @@ export default async function ProfilePage() {
     2: '😐 กลาง',
     3: '😰 ยาก',
   }
+
+  const statusDisplay = user.status
+    ? formatStatus({
+        status: user.status,
+        degreeLevel: user.degreeLevel,
+        yearOfStudy: user.yearOfStudy,
+        faculty: user.faculty,
+        alumniYear: user.alumniYear,
+      })
+    : null
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -89,13 +100,9 @@ export default async function ProfilePage() {
           <div className="text-sm text-gray-500">
             รีวิวแล้ว <span className="font-semibold text-gray-800">{uniqueCoursesReviewed}</span> วิชา
           </div>
-          {user.status && (
+          {statusDisplay && (
             <div className="text-sm text-gray-500">
-              สถานะ:{' '}
-              <span className="font-semibold text-gray-800">
-                {user.status === 'STUDENT' ? 'นักศึกษา' : user.status === 'TEACHER' ? 'อาจารย์' : 'ศิษย์เก่า'}
-                {user.status === 'STUDENT' && user.yearOfStudy ? ` ปี ${user.yearOfStudy}` : ''}
-              </span>
+              สถานะ: <span className="font-semibold text-gray-800">{statusDisplay}</span>
             </div>
           )}
         </div>
@@ -108,6 +115,9 @@ export default async function ProfilePage() {
             isAnonymous={user.isAnonymous}
             status={user.status ?? null}
             yearOfStudy={user.yearOfStudy ?? null}
+            degreeLevel={user.degreeLevel ?? null}
+            faculty={user.faculty ?? null}
+            alumniYear={user.alumniYear ?? null}
           />
         </div>
 

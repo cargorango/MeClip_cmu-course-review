@@ -10,13 +10,31 @@ const STATUS_OPTIONS = [
   { value: 'ALUMNI', label: 'ศิษย์เก่า' },
 ]
 
+const DEGREE_OPTIONS = [
+  { value: 'BACHELOR', label: 'ป.ตรี' },
+  { value: 'MASTER', label: 'ป.โท' },
+  { value: 'DOCTORAL', label: 'ป.เอก' },
+]
+
 export default function OnboardingPage() {
   const router = useRouter()
   const [displayName, setDisplayName] = useState('')
   const [status, setStatus] = useState('')
+  const [degreeLevel, setDegreeLevel] = useState('')
   const [yearOfStudy, setYearOfStudy] = useState('')
+  const [faculty, setFaculty] = useState('')
+  const [alumniYear, setAlumniYear] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const handleStatusChange = (newStatus: string) => {
+    setStatus(newStatus)
+    // Clear all status-specific fields when status changes
+    setDegreeLevel('')
+    setYearOfStudy('')
+    setFaculty('')
+    setAlumniYear('')
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,8 +48,22 @@ export default function OnboardingPage() {
       setError('กรุณาเลือกสถานะ')
       return
     }
-    if (status === 'STUDENT' && !yearOfStudy) {
-      setError('กรุณาเลือกชั้นปี')
+    if (status === 'STUDENT') {
+      if (!degreeLevel) {
+        setError('กรุณาเลือกระดับปริญญา')
+        return
+      }
+      if (!yearOfStudy) {
+        setError('กรุณาเลือกชั้นปี')
+        return
+      }
+    }
+    if (status === 'TEACHER' && !faculty.trim()) {
+      setError('กรุณากรอกชื่อคณะ')
+      return
+    }
+    if (status === 'ALUMNI' && !alumniYear) {
+      setError('กรุณากรอกรุ่นที่จบ')
       return
     }
 
@@ -44,6 +76,9 @@ export default function OnboardingPage() {
           displayName: displayName.trim(),
           status,
           yearOfStudy: status === 'STUDENT' ? parseInt(yearOfStudy) : null,
+          degreeLevel: status === 'STUDENT' ? degreeLevel : null,
+          faculty: status === 'TEACHER' ? faculty.trim() : null,
+          alumniYear: status === 'ALUMNI' ? parseInt(alumniYear) : null,
           isProfileComplete: true,
         }),
       })
@@ -99,7 +134,7 @@ export default function OnboardingPage() {
               </label>
               <select
                 value={status}
-                onChange={e => { setStatus(e.target.value); setYearOfStudy('') }}
+                onChange={e => handleStatusChange(e.target.value)}
                 className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
               >
                 <option value="">-- เลือกสถานะ --</option>
@@ -109,7 +144,26 @@ export default function OnboardingPage() {
               </select>
             </div>
 
-            {/* Year of Study (only for STUDENT) */}
+            {/* STUDENT: Degree Level */}
+            {status === 'STUDENT' && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">
+                  ระดับปริญญา <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={degreeLevel}
+                  onChange={e => setDegreeLevel(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                >
+                  <option value="">-- เลือกระดับปริญญา --</option>
+                  {DEGREE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* STUDENT: Year of Study */}
             {status === 'STUDENT' && (
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">
@@ -125,6 +179,41 @@ export default function OnboardingPage() {
                     <option key={y} value={String(y)}>ปี {y}</option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {/* TEACHER: Faculty */}
+            {status === 'TEACHER' && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">
+                  คณะ <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={faculty}
+                  onChange={e => setFaculty(e.target.value)}
+                  maxLength={100}
+                  placeholder="เช่น คณะเศรษฐศาสตร์"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            )}
+
+            {/* ALUMNI: Alumni Year */}
+            {status === 'ALUMNI' && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">
+                  รุ่น/ปีที่จบ <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  value={alumniYear}
+                  onChange={e => setAlumniYear(e.target.value)}
+                  min={1}
+                  max={99}
+                  placeholder="เช่น 65"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
               </div>
             )}
 

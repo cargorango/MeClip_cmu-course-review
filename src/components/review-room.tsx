@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Send, Loader2, Pencil, Check, X, EyeOff, Eye } from 'lucide-react'
 import { getSupabaseClient } from '@/lib/supabase-client'
+import { formatStatus } from '@/lib/status-formatter'
 
 interface Message {
   id: string
@@ -19,6 +20,14 @@ interface Message {
 interface ReviewRoomProps {
   courseId: string
   isLoggedIn: boolean
+}
+
+interface UserProfile {
+  status?: string | null
+  degreeLevel?: string | null
+  yearOfStudy?: number | null
+  faculty?: string | null
+  alumniYear?: number | null
 }
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -55,6 +64,7 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState('')
   const [isAnonymous, setIsAnonymous] = useState(false)
+  const [userProfile, setUserProfile] = useState<UserProfile>({})
   const bottomRef = useRef<HTMLDivElement>(null)
   const topRef = useRef<HTMLDivElement>(null)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -71,12 +81,21 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 80)
   }, [])
 
-  // Load anonymous preference from profile
+  // Load anonymous preference and profile data
   useEffect(() => {
     if (!isLoggedIn) return
     fetch('/api/profile')
       .then(r => r.json())
-      .then(d => { if (typeof d.isAnonymous === 'boolean') setIsAnonymous(d.isAnonymous) })
+      .then(d => {
+        if (typeof d.isAnonymous === 'boolean') setIsAnonymous(d.isAnonymous)
+        setUserProfile({
+          status: d.status,
+          degreeLevel: d.degreeLevel,
+          yearOfStudy: d.yearOfStudy,
+          faculty: d.faculty,
+          alumniYear: d.alumniYear,
+        })
+      })
       .catch(() => {})
   }, [isLoggedIn])
 
@@ -181,13 +200,17 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
     setSendError('')
 
     const tempId = `temp-${Date.now()}`
+    // Build anonymous placeholder using formatStatus with current profile
+    const anonymousPlaceholder = isAnonymous
+      ? formatStatus(userProfile)
+      : 'คุณ'
     const tempMsg: Message = {
       id: tempId,
       content: trimmed,
       createdAt: new Date().toISOString(),
       editedAt: null,
       isOwn: true,
-      sender: { displayName: isAnonymous ? 'ไม่ระบุตัวตน' : 'คุณ', reviewerLevel: null },
+      sender: { displayName: anonymousPlaceholder, reviewerLevel: null },
     }
     setMessages(prev => [...prev, tempMsg])
     setInput('')

@@ -60,6 +60,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.isAnonymous = dbUser.isAnonymous
           token.status = dbUser.status
           token.yearOfStudy = dbUser.yearOfStudy
+          token.degreeLevel = dbUser.degreeLevel
+          token.faculty = dbUser.faculty
+          token.alumniYear = dbUser.alumniYear
           token.isProfileComplete = dbUser.isProfileComplete
         } else {
           // Google OAuth
@@ -89,6 +92,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.isAnonymous = dbUser.isAnonymous
           token.status = dbUser.status
           token.yearOfStudy = dbUser.yearOfStudy
+          token.degreeLevel = dbUser.degreeLevel
+          token.faculty = dbUser.faculty
+          token.alumniYear = dbUser.alumniYear
           token.isProfileComplete = dbUser.isProfileComplete
         }
       } else if (token.id) {
@@ -100,6 +106,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             isAnonymous: true,
             status: true,
             yearOfStudy: true,
+            degreeLevel: true,
+            faculty: true,
+            alumniYear: true,
             isProfileComplete: true,
           },
         })
@@ -109,6 +118,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.isAnonymous = dbUser.isAnonymous
           token.status = dbUser.status
           token.yearOfStudy = dbUser.yearOfStudy
+          token.degreeLevel = dbUser.degreeLevel
+          token.faculty = dbUser.faculty
+          token.alumniYear = dbUser.alumniYear
           token.isProfileComplete = dbUser.isProfileComplete
         }
       }
@@ -122,6 +134,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.isAnonymous = token.isAnonymous as boolean
         session.user.status = (token.status ?? null) as import('@prisma/client').UserStatus | null
         session.user.yearOfStudy = (token.yearOfStudy ?? null) as number | null
+        session.user.degreeLevel = (token.degreeLevel ?? null) as import('@prisma/client').DegreeLevel | null
+        session.user.faculty = (token.faculty ?? null) as string | null
+        session.user.alumniYear = (token.alumniYear ?? null) as number | null
         session.user.isProfileComplete = (token.isProfileComplete ?? false) as boolean
       }
       return session
