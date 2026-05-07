@@ -49,12 +49,19 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
     ? (course.ratings.find(r => r.userId === session.user.id)?.rating ?? null)
     : null
 
-  const programTypeLabel = course.curriculum?.programType === 'REGULAR'
+  // Only show curriculum label if it's a real curriculum (not auto-generated placeholders)
+  const AUTO_CURRICULUM_IDS = ['curriculum-free-elective', 'curriculum-general']
+  const isRealCurriculum = course.curriculum && !AUTO_CURRICULUM_IDS.includes(course.curriculum.id)
+  const programTypeLabel = isRealCurriculum && course.curriculum?.programType === 'REGULAR'
     ? (lang === 'en' ? 'Regular' : 'ภาคปกติ')
     : (lang === 'en' ? 'International' : 'นานาชาติ')
-  const curriculumLabel = course.curriculum
-    ? `${programTypeLabel} ${course.curriculum.curriculumYear}`
+  const curriculumLabel = isRealCurriculum
+    ? `${programTypeLabel} ${course.curriculum!.curriculumYear}`
     : null
+
+  // Only show faculty if it's a real faculty (not auto-generated)
+  const AUTO_FACULTY_IDS = ['faculty-free-elective', 'faculty-general']
+  const showFaculty = !AUTO_FACULTY_IDS.includes(course.faculty.id)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -112,9 +119,11 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
             </div>
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
-            <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
-              {course.faculty.nameTh}
-            </span>
+            {showFaculty && (
+              <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
+                {course.faculty.nameTh}
+              </span>
+            )}
             {curriculumLabel && (
               <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
                 {curriculumLabel}

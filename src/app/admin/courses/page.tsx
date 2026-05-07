@@ -102,6 +102,7 @@ export default function AdminCoursesPage() {
   const [courses, setCourses] = useState<CourseItem[]>([])
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([])
   const [loadingData, setLoadingData] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
   const [confirmDialog, setConfirmDialog] = useState<{
     title: string
     message: string
@@ -110,10 +111,12 @@ export default function AdminCoursesPage() {
     confirmLabel?: string
   } | null>(null)
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (q?: string) => {
     setLoadingData(true)
     try {
-      const res = await fetch('/api/admin/courses?audit=true')
+      const params = new URLSearchParams({ audit: 'true' })
+      if (q) params.set('q', q)
+      const res = await fetch(`/api/admin/courses?${params.toString()}`)
       if (res.ok) {
         const data = await res.json()
         setCourses(data.courses)
@@ -125,8 +128,17 @@ export default function AdminCoursesPage() {
   }, [])
 
   useEffect(() => {
+    // Only load audit logs initially, not all courses
     fetchData()
   }, [fetchData])
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchData(searchQuery)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery, fetchData])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
@@ -178,7 +190,7 @@ export default function AdminCoursesPage() {
         })
         setForm(EMPTY_FORM)
         setEditingCourseId(null)
-        fetchData()
+        fetchData(searchQuery)
       } else {
         setResult({ type: 'error', message: data.error ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่' })
       }
@@ -215,7 +227,7 @@ export default function AdminCoursesPage() {
           const data = await res.json()
           if (res.ok) {
             setResult({ type: 'success', message: `ลบวิชา ${course.nameTh} เรียบร้อยแล้ว` })
-            fetchData()
+            fetchData(searchQuery)
           } else {
             setResult({ type: 'error', message: data.error ?? 'เกิดข้อผิดพลาด' })
           }
@@ -428,9 +440,18 @@ export default function AdminCoursesPage() {
 
       {/* Course list */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-900">รายการวิชาทั้งหมด</h2>
-          <p className="text-xs text-gray-400 mt-0.5">{courses.length} วิชา</p>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">รายการวิชาทั้งหมด</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{courses.length} วิชา</p>
+          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="ค้นหารหัสหรือชื่อวิชา..."
+            className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+          />
         </div>
         {loadingData ? (
           <div className="p-8 text-center text-gray-400 text-sm">กำลังโหลด...</div>

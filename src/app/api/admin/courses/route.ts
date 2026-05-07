@@ -20,15 +20,26 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const includeAudit = searchParams.get('audit') === 'true'
+    const q = searchParams.get('q') ?? ''
+
+    const where = q ? {
+      OR: [
+        { code: { contains: q, mode: 'insensitive' as const } },
+        { name: { contains: q, mode: 'insensitive' as const } },
+        { nameTh: { contains: q, mode: 'insensitive' as const } },
+      ]
+    } : {}
 
     const [courses, auditLogs] = await Promise.all([
       prisma.course.findMany({
+        where,
         include: {
           faculty: { select: { id: true, name: true, nameTh: true } },
           curriculum: { select: { id: true, programType: true, curriculumYear: true } },
           _count: { select: { ratings: true } },
         },
         orderBy: { createdAt: 'desc' },
+        take: q ? 100 : 50,
       }),
       includeAudit
         ? prisma.courseAuditLog.findMany({

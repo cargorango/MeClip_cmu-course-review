@@ -9,7 +9,8 @@ async function requireAdmin() {
   if (!session?.user?.id) {
     return { error: 'กรุณาเข้าสู่ระบบก่อน', status: 401, session: null }
   }
-  if (session.user.role !== 'ADMIN' && session.user.role !== 'SUPER_ADMIN') {
+  const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'PLATFORM_MANAGER', 'SYSTEM_MANAGER', 'OPERATIONS_MANAGER']
+  if (!ADMIN_ROLES.includes(session.user.role)) {
     return { error: 'ไม่มีสิทธิ์เข้าถึง', status: 403, session: null }
   }
   return { error: null, status: 200, session }
