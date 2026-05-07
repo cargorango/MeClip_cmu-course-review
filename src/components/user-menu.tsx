@@ -10,8 +10,6 @@ interface UserMenuProps {
   lang?: string
 }
 
-const ADMIN_ROLES = ['PLATFORM_MANAGER', 'SYSTEM_MANAGER', 'OPERATIONS_MANAGER', 'ADMIN', 'SUPER_ADMIN']
-
 export default function UserMenu({ displayName, isAdmin, lang = 'th' }: UserMenuProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -60,10 +58,4 @@ export default function UserMenu({ displayName, isAdmin, lang = 'th' }: UserMenu
       )}
     </div>
   )
-}
-
-// Export helper to check if role is admin
-export function isAdminRole(role?: string | null): boolean {
-  if (!role) return false
-  return ADMIN_ROLES.includes(role)
 }

@@ -7,7 +7,8 @@ import FreeElectiveSearch from '@/components/free-elective-search'
 import FeedbackButton from '@/components/feedback-button'
 import { GraduationCap, ArrowLeft, BookOpen } from 'lucide-react'
 import { type Lang } from '@/lib/i18n'
-import UserMenu, { isAdminRole } from '@/components/user-menu'
+import UserMenu from '@/components/user-menu'
+import { isAdminRole } from '@/lib/roles'
 
 interface PageProps {
   searchParams: { lang?: string; q?: string }
