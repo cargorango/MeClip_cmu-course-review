@@ -1,0 +1,8 @@
+-- Add extended course fields from CSV import
+ALTER TABLE "Course"
+  ADD COLUMN IF NOT EXISTS "codeEn"        TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS "codeTh"        TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS "descriptionEn" TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS "prerequisite"  TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS "department"    TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS "updatedDate"   TEXT NOT NULL DEFAULT '';

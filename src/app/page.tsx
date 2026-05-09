@@ -106,6 +106,27 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </Suspense>
         </div>
 
+        {/* All courses link — above free elective */}
+        <Link
+          href={`/courses?lang=${lang}`}
+          className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-blue-300 transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-100 rounded-xl p-2.5">
+              <BookOpen className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900">
+                {lang === 'en' ? 'All Courses' : 'วิชาทั้งหมด'}
+              </p>
+              <p className="text-sm text-gray-500">
+                {lang === 'en' ? 'Search all courses' : 'ค้นหาวิชาทั้งหมดในระบบ'}
+              </p>
+            </div>
+          </div>
+          <span className="text-blue-600 group-hover:translate-x-1 transition-transform">→</span>
+        </Link>
+
         {/* Free elective tab */}
         {freeElectiveCount > 0 && (
           <Link

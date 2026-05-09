@@ -110,17 +110,37 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
 
         {/* Course info */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-3 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="bg-blue-100 rounded-xl p-2.5 shrink-0">
-              <BookOpen className="w-5 h-5 text-blue-600" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="bg-blue-100 rounded-xl p-2.5 shrink-0">
+                <BookOpen className="w-5 h-5 text-blue-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-blue-600">{course.code}</p>
+                <h1 className="text-xl font-bold text-gray-900 leading-snug">{course.nameTh}</h1>
+                <p className="text-sm text-gray-500 mt-0.5">{course.name}</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-blue-600">{course.code}</p>
-              <h1 className="text-xl font-bold text-gray-900 leading-snug">{course.nameTh}</h1>
-              <p className="text-sm text-gray-500 mt-0.5">{course.name}</p>
-            </div>
+            {/* Department badge — top right (วงกลมสีแดง) */}
+            {course.department && course.department !== '-' && (
+              <span className="shrink-0 text-xs bg-red-50 text-red-700 border border-red-200 px-2.5 py-1 rounded-full font-medium whitespace-nowrap">
+                {course.department}
+              </span>
+            )}
           </div>
+
+          {/* Badges row — codeEn + credits (วงกลมสีฟ้า) */}
           <div className="flex flex-wrap gap-2 pt-1">
+            {course.codeEn && course.codeEn !== '-' && (
+              <span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full font-medium">
+                {course.codeEn}
+              </span>
+            )}
+            {course.credits && course.credits !== '-' && (
+              <span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full font-medium">
+                {lang === 'en' ? 'Credits' : 'หน่วยกิต'}: {course.credits}
+              </span>
+            )}
             {showFaculty && (
               <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
                 {course.faculty.nameTh}
@@ -131,19 +151,43 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
                 {curriculumLabel}
               </span>
             )}
-            {course.credits && (
-              <span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full font-medium">
-                {lang === 'en' ? 'Credits' : 'หน่วยกิต'}: {course.credits}
-              </span>
-            )}
           </div>
-          {course.description && (
+
+          {/* Prerequisite */}
+          {course.prerequisite && course.prerequisite !== '-' && (
+            <div className="pt-1">
+              <span className="text-xs text-gray-500">
+                {lang === 'en' ? 'Prerequisite: ' : 'วิชาบังคับก่อน: '}
+                <span className="font-medium text-gray-700">{course.prerequisite}</span>
+              </span>
+            </div>
+          )}
+
+          {/* Description Thai */}
+          {course.description && course.description !== '-' && (
             <div className="mt-3 pt-3 border-t border-gray-100">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                {lang === 'en' ? 'Course Description' : 'คำอธิบายวิชา'}
+                {lang === 'en' ? 'Course Description (TH)' : 'คำอธิบายวิชา'}
               </p>
               <p className="text-sm text-gray-700 leading-relaxed">{course.description}</p>
             </div>
+          )}
+
+          {/* Description English */}
+          {course.descriptionEn && course.descriptionEn !== '-' && (
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                Course Description (EN)
+              </p>
+              <p className="text-sm text-gray-700 leading-relaxed">{course.descriptionEn}</p>
+            </div>
+          )}
+
+          {/* Updated date */}
+          {course.updatedDate && course.updatedDate !== '-' && (
+            <p className="text-xs text-gray-400 pt-1">
+              {lang === 'en' ? 'Last updated: ' : 'อัปเดตล่าสุด: '}{course.updatedDate}
+            </p>
           )}
         </div>
 

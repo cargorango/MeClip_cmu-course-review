@@ -89,8 +89,14 @@ model Course {
   code           String   @unique
   name           String
   nameTh         String
+  codeEn         String   @default("") // รหัสย่อ (EN)
+  codeTh         String   @default("") // รหัสย่อ (TH)
   credits        String   @default("")
   description    String   @default("")
+  descriptionEn  String   @default("") // คำอธิบายวิชา (อังกฤษ)
+  prerequisite   String   @default("") // Prerequisite
+  department     String   @default("") // คณะ/หน่วยงาน
+  updatedDate    String   @default("") // วันที่อัปเดต
   isFreeElective Boolean  @default(false)
   facultyId      String
   curriculumId   String

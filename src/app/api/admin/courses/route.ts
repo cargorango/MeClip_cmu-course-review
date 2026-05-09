@@ -21,16 +21,64 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const includeAudit = searchParams.get('audit') === 'true'
     const q = searchParams.get('q') ?? ''
+    const faculty = searchParams.get('faculty') ?? ''
+    const page = parseInt(searchParams.get('page') ?? '1')
+    const limit = 50
+    const skip = (page - 1) * limit
 
-    const where = q ? {
-      OR: [
-        { code: { contains: q, mode: 'insensitive' as const } },
-        { name: { contains: q, mode: 'insensitive' as const } },
-        { nameTh: { contains: q, mode: 'insensitive' as const } },
-      ]
-    } : {}
+    // Only query if search term or faculty filter provided
+    if (!q && !faculty) {
+      // Return only audit logs when no search
+      const auditLogs = includeAudit
+        ? await prisma.courseAuditLog.findMany({
+            include: {
+              course: { select: { id: true, code: true, nameTh: true } },
+              admin: { select: { id: true, displayName: true, email: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+          })
+        : []
 
-    const [courses, auditLogs] = await Promise.all([
+      return NextResponse.json({
+        courses: [],
+        total: 0,
+        page: 1,
+        totalPages: 0,
+        auditLogs: auditLogs.map(l => ({
+          id: l.id,
+          action: l.action,
+          createdAt: l.createdAt.toISOString(),
+          course: l.course,
+          admin: l.admin,
+        })),
+      })
+    }
+
+    const where: Record<string, unknown> = {}
+    const conditions = []
+
+    if (q) {
+      conditions.push({
+        OR: [
+          { code: { contains: q, mode: 'insensitive' as const } },
+          { name: { contains: q, mode: 'insensitive' as const } },
+          { nameTh: { contains: q, mode: 'insensitive' as const } },
+          { codeEn: { contains: q, mode: 'insensitive' as const } },
+          { codeTh: { contains: q, mode: 'insensitive' as const } },
+        ],
+      })
+    }
+
+    if (faculty) {
+      conditions.push({ department: { contains: faculty, mode: 'insensitive' as const } })
+    }
+
+    if (conditions.length > 0) {
+      where.AND = conditions
+    }
+
+    const [courses, total, auditLogs] = await Promise.all([
       prisma.course.findMany({
         where,
         include: {
@@ -38,9 +86,11 @@ export async function GET(request: NextRequest) {
           curriculum: { select: { id: true, programType: true, curriculumYear: true } },
           _count: { select: { ratings: true } },
         },
-        orderBy: { createdAt: 'desc' },
-        take: q ? 100 : 50,
+        orderBy: { code: 'asc' },
+        skip,
+        take: limit,
       }),
+      prisma.course.count({ where }),
       includeAudit
         ? prisma.courseAuditLog.findMany({
             include: {
@@ -59,14 +109,23 @@ export async function GET(request: NextRequest) {
         code: c.code,
         name: c.name,
         nameTh: c.nameTh,
+        codeEn: c.codeEn,
+        codeTh: c.codeTh,
         credits: c.credits,
         description: c.description,
+        descriptionEn: c.descriptionEn,
+        prerequisite: c.prerequisite,
+        department: c.department,
+        updatedDate: c.updatedDate,
         isFreeElective: c.isFreeElective,
         faculty: c.faculty,
         curriculum: c.curriculum,
         reviewCount: c._count.ratings,
         createdAt: c.createdAt.toISOString(),
       })),
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
       auditLogs: auditLogs.map(l => ({
         id: l.id,
         action: l.action,
@@ -193,6 +252,14 @@ export async function PATCH(request: NextRequest) {
     if (credits !== undefined) updateData.credits = credits.trim()
     if (description !== undefined) updateData.description = description.trim()
     if (isFreeElective !== undefined) updateData.isFreeElective = Boolean(isFreeElective)
+    // New fields
+    const { codeEn, codeTh, descriptionEn, prerequisite, department, updatedDate } = body
+    if (codeEn !== undefined) updateData.codeEn = codeEn.trim()
+    if (codeTh !== undefined) updateData.codeTh = codeTh.trim()
+    if (descriptionEn !== undefined) updateData.descriptionEn = descriptionEn.trim()
+    if (prerequisite !== undefined) updateData.prerequisite = prerequisite.trim()
+    if (department !== undefined) updateData.department = department.trim()
+    if (updatedDate !== undefined) updateData.updatedDate = updatedDate.trim()
 
     const updated = await prisma.course.update({
       where: { id: courseId },
