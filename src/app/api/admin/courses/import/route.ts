@@ -33,7 +33,8 @@ function clean(v: string | undefined): string {
 }
 
 // POST /api/admin/courses/import
-// Body: { courses: CourseRow[] }  — JSON micro-batch (max 100 rows) from client
+// Body: { courses: CourseRow[] }  — JSON micro-batch (max 50 rows) from client
+// Uses Prisma upsert to prevent duplicates on repeated uploads
 export async function POST(request: NextRequest) {
   const { error, status, session } = await requireAdmin()
   if (error) return NextResponse.json({ error }, { status })
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     const rows = body.courses
 
-    // Ensure default faculty/curriculum exist (idempotent, fast)
+    // Ensure default faculty/curriculum exist (idempotent)
     const defaultFacultyId = 'faculty-csv-import'
     const defaultCurriculumId = 'curriculum-csv-import'
 
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Collect valid rows
+    // Filter valid rows (must have a course code)
     const validRows = rows.filter(r => (r.code ?? '').trim() !== '')
     const skipped = rows.length - validRows.length
 
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     const codes = validRows.map(r => r.code.trim())
 
-    // Bulk fetch existing courses in ONE query instead of N queries
+    // Bulk fetch existing courses in ONE query to determine insert vs update
     const existingCourses = await prisma.course.findMany({
       where: { code: { in: codes } },
       select: { id: true, code: true, name: true, nameTh: true },
@@ -96,12 +97,12 @@ export async function POST(request: NextRequest) {
       const nameTh = clean(row.nameTh)
       const name = clean(row.name)
 
+      // Skip rows with no name for brand-new courses
       if (nameTh === '-' && name === '-' && !existing) {
-        // Skip rows with no name at all (only for new courses)
         continue
       }
 
-      const data = {
+      const courseData = {
         name: name === '-' ? (existing?.name ?? '-') : name,
         nameTh: nameTh === '-' ? (existing?.nameTh ?? '-') : nameTh,
         codeEn: clean(row.codeEn),
@@ -115,22 +116,25 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+        // Upsert: create if not exists, update if exists — atomic and idempotent
+        const result = await prisma.course.upsert({
+          where: { code },
+          update: courseData,
+          create: {
+            ...courseData,
+            code,
+            isFreeElective: false,
+            facultyId: defaultFacultyId,
+            curriculumId: defaultCurriculumId,
+          },
+          select: { id: true },
+        })
+
         if (existing) {
-          await prisma.course.update({ where: { code }, data })
-          auditLogs.push({ courseId: existing.id, adminId: session!.user.id, action: 'UPDATE' })
+          auditLogs.push({ courseId: result.id, adminId: session!.user.id, action: 'UPDATE' })
           updated++
         } else {
-          const created = await prisma.course.create({
-            data: {
-              ...data,
-              code,
-              isFreeElective: false,
-              facultyId: defaultFacultyId,
-              curriculumId: defaultCurriculumId,
-            },
-            select: { id: true },
-          })
-          auditLogs.push({ courseId: created.id, adminId: session!.user.id, action: 'CREATE' })
+          auditLogs.push({ courseId: result.id, adminId: session!.user.id, action: 'CREATE' })
           inserted++
         }
       } catch (err) {

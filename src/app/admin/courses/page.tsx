@@ -20,8 +20,8 @@ const COLUMN_MAP: Record<string, string> = {
   'วันที่อัปเดต': 'updatedDate',
 }
 
-const BATCH_SIZE = 100
-const BATCH_DELAY_MS = 300
+const BATCH_SIZE = 50
+const BATCH_DELAY_MS = 500
 
 interface CourseItem {
   id: string
