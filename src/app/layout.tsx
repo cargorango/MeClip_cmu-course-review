@@ -3,6 +3,7 @@ import localFont from 'next/font/local'
 import { Suspense } from 'react'
 import './globals.css'
 import NavigationProgress from '@/components/navigation-progress'
+import { Toaster } from 'sonner'
 
 const geistSans = localFont({
   src: './fonts/GeistVF.woff',
@@ -28,6 +29,7 @@ export default function RootLayout({
           <NavigationProgress />
         </Suspense>
         {children}
+        <Toaster richColors position="top-right" duration={4000} />
       </body>
     </html>
   )

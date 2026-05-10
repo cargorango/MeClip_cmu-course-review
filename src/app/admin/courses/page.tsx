@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef } from 'react'
+import { toast } from 'sonner'
 import { BookPlus, Pencil, Trash2, X, AlertTriangle, Search, Upload, Loader2, ChevronLeft, ChevronRight, CheckCircle, XCircle } from 'lucide-react'
 
 interface CourseItem {
@@ -83,7 +84,6 @@ export default function AdminCoursesPage() {
   // CSV upload
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
-  const [uploadResult, setUploadResult] = useState<{ message: string; errors?: string[] } | null>(null)
 
   const fetchCourses = useCallback(async (q: string, fac: string, p: number) => {
     if (!q && !fac) return
@@ -114,19 +114,30 @@ export default function AdminCoursesPage() {
   const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+
     setUploading(true)
-    setUploadResult(null)
+    const toastId = toast.loading('⏳ กำลังประมวลผลข้อมูล... กรุณารอสักครู่')
+
     try {
       const fd = new FormData()
       fd.append('file', file)
       const res = await fetch('/api/admin/courses/import', { method: 'POST', body: fd })
       const data = await res.json()
+
       if (res.ok) {
-        setUploadResult({ message: data.message, errors: data.errors })
+        toast.success(`✅ ${data.message}`, {
+          id: toastId,
+          duration: 6000,
+          description: data.errors?.length
+            ? `⚠️ มีข้อผิดพลาด ${data.errors.length} รายการ: ${data.errors.slice(0, 3).join(', ')}${data.errors.length > 3 ? '...' : ''}`
+            : undefined,
+        })
         fetchCourses(searchQuery, facultyFilter, 1)
       } else {
-        setUploadResult({ message: data.error ?? 'เกิดข้อผิดพลาด' })
+        toast.error(`❌ เกิดข้อผิดพลาด: ${data.error ?? 'ไม่ทราบสาเหตุ'}`, { id: toastId })
       }
+    } catch (err) {
+      toast.error(`❌ เกิดข้อผิดพลาด: ${err instanceof Error ? err.message : 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้'}`, { id: toastId })
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -235,19 +246,6 @@ export default function AdminCoursesPage() {
           </label>
         </div>
       </div>
-
-      {/* Upload result */}
-      {uploadResult && (
-        <div className={`rounded-xl px-4 py-3 text-sm flex items-start justify-between gap-3 ${uploadResult.errors?.length ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' : 'bg-green-50 border border-green-200 text-green-800'}`}>
-          <div>
-            <p className="font-medium">{uploadResult.message}</p>
-            {uploadResult.errors && uploadResult.errors.length > 0 && (
-              <ul className="mt-1 space-y-0.5 text-xs">{uploadResult.errors.map((e, i) => <li key={i}>• {e}</li>)}</ul>
-            )}
-          </div>
-          <button onClick={() => setUploadResult(null)}><X className="w-4 h-4" /></button>
-        </div>
-      )}
 
       {/* Result */}
       {result && (
