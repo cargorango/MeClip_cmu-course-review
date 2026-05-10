@@ -15,20 +15,25 @@ async function requireAdmin() {
 
 export interface CourseRow {
   code: string
-  name: string
-  nameTh: string
-  codeEn: string
-  codeTh: string
-  credits: string
-  description: string
-  descriptionEn: string
-  prerequisite: string
-  department: string
-  updatedDate: string
+  name?: string
+  nameTh?: string
+  codeEn?: string
+  codeTh?: string
+  credits?: string
+  description?: string
+  descriptionEn?: string
+  prerequisite?: string
+  department?: string
+  updatedDate?: string
+}
+
+function clean(v: string | undefined): string {
+  const s = (v ?? '').trim()
+  return s === '' ? '-' : s
 }
 
 // POST /api/admin/courses/import
-// Body: { courses: CourseRow[] }  — JSON batch sent from client after PapaParse
+// Body: { courses: CourseRow[] }  — JSON micro-batch (max 100 rows) from client
 export async function POST(request: NextRequest) {
   const { error, status, session } = await requireAdmin()
   if (error) return NextResponse.json({ error }, { status })
@@ -42,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     const rows = body.courses
 
-    // Ensure default faculty/curriculum exist (idempotent)
+    // Ensure default faculty/curriculum exist (idempotent, fast)
     const defaultFacultyId = 'faculty-csv-import'
     const defaultCurriculumId = 'curriculum-csv-import'
 
@@ -62,41 +67,60 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // Collect valid rows
+    const validRows = rows.filter(r => (r.code ?? '').trim() !== '')
+    const skipped = rows.length - validRows.length
+
+    if (validRows.length === 0) {
+      return NextResponse.json({ message: 'ไม่มีข้อมูลที่ถูกต้อง', inserted: 0, updated: 0, skipped, errors: [] })
+    }
+
+    const codes = validRows.map(r => r.code.trim())
+
+    // Bulk fetch existing courses in ONE query instead of N queries
+    const existingCourses = await prisma.course.findMany({
+      where: { code: { in: codes } },
+      select: { id: true, code: true, name: true, nameTh: true },
+    })
+    const existingMap = new Map(existingCourses.map(c => [c.code, c]))
+
     let inserted = 0
     let updated = 0
-    let skipped = 0
     const errors: string[] = []
+    const auditLogs: { courseId: string; adminId: string; action: string }[] = []
 
-    for (const row of rows) {
-      const code = (row.code ?? '').trim()
-      if (!code) { skipped++; continue }
+    for (const row of validRows) {
+      const code = row.code.trim()
+      const existing = existingMap.get(code)
 
-      const nameTh = (row.nameTh ?? '').trim() || '-'
-      const name = (row.name ?? '').trim() || '-'
+      const nameTh = clean(row.nameTh)
+      const name = clean(row.name)
 
-      if (nameTh === '-' && name === '-') { skipped++; continue }
+      if (nameTh === '-' && name === '-' && !existing) {
+        // Skip rows with no name at all (only for new courses)
+        continue
+      }
+
+      const data = {
+        name: name === '-' ? (existing?.name ?? '-') : name,
+        nameTh: nameTh === '-' ? (existing?.nameTh ?? '-') : nameTh,
+        codeEn: clean(row.codeEn),
+        codeTh: clean(row.codeTh),
+        credits: clean(row.credits),
+        description: clean(row.description),
+        descriptionEn: clean(row.descriptionEn),
+        prerequisite: clean(row.prerequisite),
+        department: clean(row.department),
+        updatedDate: clean(row.updatedDate),
+      }
 
       try {
-        const existing = await prisma.course.findUnique({ where: { code } })
-
-        const data = {
-          name: name === '-' ? (existing?.name ?? '-') : name,
-          nameTh: nameTh === '-' ? (existing?.nameTh ?? '-') : nameTh,
-          codeEn: (row.codeEn ?? '').trim() || '-',
-          codeTh: (row.codeTh ?? '').trim() || '-',
-          credits: (row.credits ?? '').trim() || '-',
-          description: (row.description ?? '').trim() || '-',
-          descriptionEn: (row.descriptionEn ?? '').trim() || '-',
-          prerequisite: (row.prerequisite ?? '').trim() || '-',
-          department: (row.department ?? '').trim() || '-',
-          updatedDate: (row.updatedDate ?? '').trim() || '-',
-        }
-
         if (existing) {
           await prisma.course.update({ where: { code }, data })
+          auditLogs.push({ courseId: existing.id, adminId: session!.user.id, action: 'UPDATE' })
           updated++
         } else {
-          await prisma.course.create({
+          const created = await prisma.course.create({
             data: {
               ...data,
               code,
@@ -104,22 +128,19 @@ export async function POST(request: NextRequest) {
               facultyId: defaultFacultyId,
               curriculumId: defaultCurriculumId,
             },
+            select: { id: true },
           })
+          auditLogs.push({ courseId: created.id, adminId: session!.user.id, action: 'CREATE' })
           inserted++
         }
-
-        // Audit log
-        const courseId = (await prisma.course.findUnique({ where: { code }, select: { id: true } }))!.id
-        await prisma.courseAuditLog.create({
-          data: {
-            courseId,
-            adminId: session!.user.id,
-            action: existing ? 'UPDATE' : 'CREATE',
-          },
-        })
       } catch (err) {
         errors.push(`รหัส ${code}: ${err instanceof Error ? err.message : 'unknown error'}`)
       }
+    }
+
+    // Bulk insert audit logs in one query
+    if (auditLogs.length > 0) {
+      await prisma.courseAuditLog.createMany({ data: auditLogs })
     }
 
     return NextResponse.json({

@@ -20,7 +20,8 @@ const COLUMN_MAP: Record<string, string> = {
   'วันที่อัปเดต': 'updatedDate',
 }
 
-const BATCH_SIZE = 500
+const BATCH_SIZE = 100
+const BATCH_DELAY_MS = 300
 
 interface CourseItem {
   id: string
@@ -161,7 +162,7 @@ export default function AdminCoursesPage() {
         return
       }
 
-      // Step 2: Split into batches and send sequentially
+      // Step 2: Split into micro-batches of 100 rows each
       const batches: Record<string, string>[][] = []
       for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
         batches.push(validRows.slice(i, i + BATCH_SIZE))
@@ -172,47 +173,78 @@ export default function AdminCoursesPage() {
       let totalSkipped = 0
       const allErrors: string[] = []
 
+      // Step 3: Send batches sequentially with delay — continue on error (fail-safe)
       for (let i = 0; i < batches.length; i++) {
+        const batchNum = i + 1
+        const processedSoFar = i * BATCH_SIZE
         toast.loading(
-          `⏳ กำลังบันทึกข้อมูลส่วนที่ ${i + 1}/${batches.length}... (${Math.round(((i) / batches.length) * 100)}%)`,
+          `⏳ กำลังอัปโหลด... ก้อนที่ ${batchNum} จากทั้งหมด ${batches.length} (รวม ${processedSoFar + batches[i].length} วิชากำลังประมวลผล)`,
           { id: toastId }
         )
 
-        const res = await fetch('/api/admin/courses/import', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ courses: batches[i] }),
-        })
+        try {
+          const res = await fetch('/api/admin/courses/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ courses: batches[i] }),
+          })
 
-        const data = await res.json()
+          // Safely parse response — guard against non-JSON (e.g. Vercel error pages)
+          let data: { inserted?: number; updated?: number; skipped?: number; errors?: string[]; error?: string }
+          const contentType = res.headers.get('content-type') ?? ''
+          if (contentType.includes('application/json')) {
+            data = await res.json()
+          } else {
+            const text = await res.text()
+            allErrors.push(`ก้อนที่ ${batchNum}: เซิร์ฟเวอร์ตอบกลับไม่ใช่ JSON (${res.status}) — ${text.slice(0, 80)}`)
+            // Continue to next batch (fail-safe)
+            await new Promise(r => setTimeout(r, BATCH_DELAY_MS))
+            continue
+          }
 
-        if (!res.ok) {
-          toast.error(`❌ เกิดข้อผิดพลาดที่ส่วนที่ ${i + 1}: ${data.error ?? 'ไม่ทราบสาเหตุ'}`, { id: toastId })
-          return
+          if (res.ok) {
+            totalInserted += data.inserted ?? 0
+            totalUpdated += data.updated ?? 0
+            totalSkipped += data.skipped ?? 0
+            if (data.errors?.length) allErrors.push(...data.errors)
+          } else {
+            allErrors.push(`ก้อนที่ ${batchNum}: ${data.error ?? 'ไม่ทราบสาเหตุ'}`)
+            // Continue to next batch (fail-safe)
+          }
+        } catch (batchErr) {
+          // Network error / timeout — log and continue
+          allErrors.push(`ก้อนที่ ${batchNum}: ${batchErr instanceof Error ? batchErr.message : 'network error'}`)
         }
 
-        totalInserted += data.inserted ?? 0
-        totalUpdated += data.updated ?? 0
-        totalSkipped += data.skipped ?? 0
-        if (data.errors?.length) allErrors.push(...data.errors)
+        // Throttle: wait 300ms before next batch to avoid DB connection exhaustion
+        if (i < batches.length - 1) {
+          await new Promise(r => setTimeout(r, BATCH_DELAY_MS))
+        }
       }
 
-      // Step 3: Show final success toast
-      toast.success(
-        `✅ อัปโหลดสำเร็จทั้งหมด ${totalInserted + totalUpdated} รายวิชา`,
-        {
-          id: toastId,
-          duration: 7000,
-          description: [
-            `เพิ่มใหม่ ${totalInserted} วิชา, อัปเดต ${totalUpdated} วิชา, ข้าม ${totalSkipped} แถว`,
-            allErrors.length > 0
-              ? `⚠️ มีข้อผิดพลาด ${allErrors.length} รายการ: ${allErrors.slice(0, 3).join(', ')}${allErrors.length > 3 ? '...' : ''}`
-              : '',
-          ].filter(Boolean).join(' · '),
-        }
-      )
+      // Step 4: Final summary toast
+      const totalDone = totalInserted + totalUpdated
+      if (allErrors.length === 0) {
+        toast.success(
+          `✅ อัปโหลดสำเร็จแล้ว ${totalDone} รายวิชา`,
+          {
+            id: toastId,
+            duration: 7000,
+            description: `เพิ่มใหม่ ${totalInserted} วิชา · อัปเดต ${totalUpdated} วิชา · ข้าม ${totalSkipped} แถว`,
+          }
+        )
+      } else {
+        toast.warning(
+          `⚠️ อัปโหลดเสร็จสิ้น ${totalDone} รายวิชา (มีบางก้อนที่มีข้อผิดพลาด)`,
+          {
+            id: toastId,
+            duration: 10000,
+            description: `เพิ่มใหม่ ${totalInserted} · อัปเดต ${totalUpdated} · ข้าม ${totalSkipped} · ข้อผิดพลาด ${allErrors.length} รายการ: ${allErrors.slice(0, 2).join(' | ')}${allErrors.length > 2 ? '...' : ''}`,
+          }
+        )
+      }
 
-      // Step 4: Refresh course list
+      // Step 5: Refresh course list
       fetchCourses(searchQuery, facultyFilter, 1)
 
     } catch (err) {
