@@ -21,7 +21,13 @@ interface HomePageProps {
 async function getHomeData() {
   const [courses, freeElectiveCount] = await Promise.all([
     prisma.course.findMany({
-      include: { ratings: { select: { rating: true } } },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        nameTh: true,
+        ratings: { select: { rating: true } },
+      },
     }),
     prisma.course.count({ where: { isFreeElective: true } }),
   ])

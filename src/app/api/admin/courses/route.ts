@@ -81,7 +81,21 @@ export async function GET(request: NextRequest) {
     const [courses, total, auditLogs] = await Promise.all([
       prisma.course.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          nameTh: true,
+          codeEn: true,
+          codeTh: true,
+          credits: true,
+          description: true,
+          descriptionEn: true,
+          prerequisite: true,
+          department: true,
+          updatedDate: true,
+          isFreeElective: true,
+          createdAt: true,
           faculty: { select: { id: true, name: true, nameTh: true } },
           curriculum: { select: { id: true, programType: true, curriculumYear: true } },
           _count: { select: { ratings: true } },

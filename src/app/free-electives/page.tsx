@@ -32,7 +32,13 @@ export default async function FreeElectivesPage({ searchParams }: PageProps) {
         ],
       } : {}),
     },
-    include: {
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      nameTh: true,
+      credits: true,
+      isFreeElective: true,
       ratings: { select: { rating: true } },
       faculty: { select: { nameTh: true } },
     },
