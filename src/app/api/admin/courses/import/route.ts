@@ -13,89 +13,36 @@ async function requireAdmin() {
   return { error: null, status: 200, session }
 }
 
-// Parse CSV text — handles quoted fields with commas inside
-function parseCSV(text: string): string[][] {
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-  return lines.map(line => {
-    const fields: string[] = []
-    let current = ''
-    let inQuotes = false
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i]
-      if (ch === '"') {
-        if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
-        else inQuotes = !inQuotes
-      } else if ((ch === ',' || ch === '\t') && !inQuotes) {
-        fields.push(current.trim())
-        current = ''
-      } else {
-        current += ch
-      }
-    }
-    fields.push(current.trim())
-    return fields
-  })
+export interface CourseRow {
+  code: string
+  name: string
+  nameTh: string
+  codeEn: string
+  codeTh: string
+  credits: string
+  description: string
+  descriptionEn: string
+  prerequisite: string
+  department: string
+  updatedDate: string
 }
 
-// Column name → index mapping
-const COLUMN_MAP: Record<string, string> = {
-  'รหัสวิชา': 'code',
-  'รหัสย่อ (EN)': 'codeEn',
-  'รหัสย่อ (TH)': 'codeTh',
-  'ชื่อวิชา (อังกฤษ)': 'name',
-  'ชื่อวิชา (ไทย)': 'nameTh',
-  'หน่วยกิต (เต็ม)': 'credits',
-  'คำอธิบายวิชา (ไทย)': 'description',
-  'คำอธิบายวิชา (อังกฤษ)': 'descriptionEn',
-  'Prerequisite': 'prerequisite',
-  'คณะ/หน่วยงาน': 'department',
-  'วันที่อัปเดต': 'updatedDate',
-  // Excluded: ปีการศึกษา, ภาคการศึกษา
-}
-
+// POST /api/admin/courses/import
+// Body: { courses: CourseRow[] }  — JSON batch sent from client after PapaParse
 export async function POST(request: NextRequest) {
   const { error, status, session } = await requireAdmin()
   if (error) return NextResponse.json({ error }, { status })
 
   try {
-    const formData = await request.formData()
-    const file = formData.get('file') as File | null
+    const body = await request.json() as { courses?: CourseRow[] }
 
-    if (!file) {
-      return NextResponse.json({ error: 'กรุณาเลือกไฟล์ CSV' }, { status: 400 })
+    if (!body.courses || !Array.isArray(body.courses) || body.courses.length === 0) {
+      return NextResponse.json({ error: 'ไม่พบข้อมูลวิชาในคำขอ' }, { status: 400 })
     }
 
-    if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
-      return NextResponse.json({ error: 'รองรับเฉพาะไฟล์ .csv เท่านั้น' }, { status: 400 })
-    }
+    const rows = body.courses
 
-    const text = await file.text()
-    const rows = parseCSV(text).filter(r => r.some(c => c.length > 0))
-
-    if (rows.length < 2) {
-      return NextResponse.json({ error: 'ไฟล์ CSV ต้องมีข้อมูลอย่างน้อย 1 แถว (ไม่นับ header)' }, { status: 400 })
-    }
-
-    // Build column index map from header row
-    const headers = rows[0]
-    const colIndex: Record<string, number> = {}
-    headers.forEach((h, i) => {
-      const key = COLUMN_MAP[h.trim()]
-      if (key) colIndex[key] = i
-    })
-
-    if (colIndex['code'] === undefined) {
-      return NextResponse.json({ error: 'ไม่พบคอลัมน์ "รหัสวิชา" ใน header ของไฟล์' }, { status: 400 })
-    }
-
-    const getVal = (row: string[], key: string): string => {
-      const idx = colIndex[key]
-      if (idx === undefined) return ''
-      const val = (row[idx] ?? '').trim()
-      return val === '' ? '-' : val
-    }
-
-    // Upsert default faculty/curriculum for CSV imports
+    // Ensure default faculty/curriculum exist (idempotent)
     const defaultFacultyId = 'faculty-csv-import'
     const defaultCurriculumId = 'curriculum-csv-import'
 
@@ -107,7 +54,12 @@ export async function POST(request: NextRequest) {
     await prisma.curriculum.upsert({
       where: { id: defaultCurriculumId },
       update: {},
-      create: { id: defaultCurriculumId, facultyId: defaultFacultyId, programType: 'REGULAR', curriculumYear: 2024 },
+      create: {
+        id: defaultCurriculumId,
+        facultyId: defaultFacultyId,
+        programType: 'REGULAR',
+        curriculumYear: 2024,
+      },
     })
 
     let inserted = 0
@@ -115,14 +67,12 @@ export async function POST(request: NextRequest) {
     let skipped = 0
     const errors: string[] = []
 
-    const dataRows = rows.slice(1)
-
-    for (const row of dataRows) {
-      const code = (row[colIndex['code']] ?? '').trim()
+    for (const row of rows) {
+      const code = (row.code ?? '').trim()
       if (!code) { skipped++; continue }
 
-      const nameTh = getVal(row, 'nameTh')
-      const name = getVal(row, 'name')
+      const nameTh = (row.nameTh ?? '').trim() || '-'
+      const name = (row.name ?? '').trim() || '-'
 
       if (nameTh === '-' && name === '-') { skipped++; continue }
 
@@ -132,14 +82,14 @@ export async function POST(request: NextRequest) {
         const data = {
           name: name === '-' ? (existing?.name ?? '-') : name,
           nameTh: nameTh === '-' ? (existing?.nameTh ?? '-') : nameTh,
-          codeEn: getVal(row, 'codeEn'),
-          codeTh: getVal(row, 'codeTh'),
-          credits: getVal(row, 'credits'),
-          description: getVal(row, 'description'),
-          descriptionEn: getVal(row, 'descriptionEn'),
-          prerequisite: getVal(row, 'prerequisite'),
-          department: getVal(row, 'department'),
-          updatedDate: getVal(row, 'updatedDate'),
+          codeEn: (row.codeEn ?? '').trim() || '-',
+          codeTh: (row.codeTh ?? '').trim() || '-',
+          credits: (row.credits ?? '').trim() || '-',
+          description: (row.description ?? '').trim() || '-',
+          descriptionEn: (row.descriptionEn ?? '').trim() || '-',
+          prerequisite: (row.prerequisite ?? '').trim() || '-',
+          department: (row.department ?? '').trim() || '-',
+          updatedDate: (row.updatedDate ?? '').trim() || '-',
         }
 
         if (existing) {
@@ -159,9 +109,10 @@ export async function POST(request: NextRequest) {
         }
 
         // Audit log
+        const courseId = (await prisma.course.findUnique({ where: { code }, select: { id: true } }))!.id
         await prisma.courseAuditLog.create({
           data: {
-            courseId: (await prisma.course.findUnique({ where: { code }, select: { id: true } }))!.id,
+            courseId,
             adminId: session!.user.id,
             action: existing ? 'UPDATE' : 'CREATE',
           },
@@ -172,11 +123,11 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      message: `นำเข้าสำเร็จ: เพิ่มใหม่ ${inserted} วิชา, อัปเดต ${updated} วิชา, ข้าม ${skipped} แถว`,
+      message: `เพิ่มใหม่ ${inserted} วิชา, อัปเดต ${updated} วิชา, ข้าม ${skipped} แถว`,
       inserted,
       updated,
       skipped,
-      errors: errors.slice(0, 10), // Return first 10 errors only
+      errors: errors.slice(0, 10),
     })
   } catch (err) {
     console.error('POST /api/admin/courses/import error:', err)

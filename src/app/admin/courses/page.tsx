@@ -2,7 +2,25 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
+import Papa from 'papaparse'
 import { BookPlus, Pencil, Trash2, X, AlertTriangle, Search, Upload, Loader2, ChevronLeft, ChevronRight, CheckCircle, XCircle } from 'lucide-react'
+
+// Column header → field key mapping (matches API CourseRow)
+const COLUMN_MAP: Record<string, string> = {
+  'รหัสวิชา': 'code',
+  'รหัสย่อ (EN)': 'codeEn',
+  'รหัสย่อ (TH)': 'codeTh',
+  'ชื่อวิชา (อังกฤษ)': 'name',
+  'ชื่อวิชา (ไทย)': 'nameTh',
+  'หน่วยกิต (เต็ม)': 'credits',
+  'คำอธิบายวิชา (ไทย)': 'description',
+  'คำอธิบายวิชา (อังกฤษ)': 'descriptionEn',
+  'Prerequisite': 'prerequisite',
+  'คณะ/หน่วยงาน': 'department',
+  'วันที่อัปเดต': 'updatedDate',
+}
+
+const BATCH_SIZE = 500
 
 interface CourseItem {
   id: string
@@ -116,28 +134,92 @@ export default function AdminCoursesPage() {
     if (!file) return
 
     setUploading(true)
-    const toastId = toast.loading('⏳ กำลังประมวลผลข้อมูล... กรุณารอสักครู่')
+    const toastId = toast.loading('📂 กำลังอ่านไฟล์ CSV...')
 
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/admin/courses/import', { method: 'POST', body: fd })
-      const data = await res.json()
-
-      if (res.ok) {
-        toast.success(`✅ ${data.message}`, {
-          id: toastId,
-          duration: 6000,
-          description: data.errors?.length
-            ? `⚠️ มีข้อผิดพลาด ${data.errors.length} รายการ: ${data.errors.slice(0, 3).join(', ')}${data.errors.length > 3 ? '...' : ''}`
-            : undefined,
+      // Step 1: Parse CSV on the client using PapaParse
+      const parsed = await new Promise<Record<string, string>[]>((resolve, reject) => {
+        Papa.parse<Record<string, string>>(file, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (h: string) => COLUMN_MAP[h.trim()] ?? h.trim(),
+          complete: (results) => resolve(results.data),
+          error: (err: Error) => reject(err),
         })
-        fetchCourses(searchQuery, facultyFilter, 1)
-      } else {
-        toast.error(`❌ เกิดข้อผิดพลาด: ${data.error ?? 'ไม่ทราบสาเหตุ'}`, { id: toastId })
+      })
+
+      if (parsed.length === 0) {
+        toast.error('❌ ไม่พบข้อมูลในไฟล์ CSV', { id: toastId })
+        return
       }
+
+      // Filter rows that have a course code
+      const validRows = parsed.filter(r => (r.code ?? '').trim() !== '')
+
+      if (validRows.length === 0) {
+        toast.error('❌ ไม่พบคอลัมน์ "รหัสวิชา" หรือไม่มีข้อมูลที่ถูกต้อง', { id: toastId })
+        return
+      }
+
+      // Step 2: Split into batches and send sequentially
+      const batches: Record<string, string>[][] = []
+      for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
+        batches.push(validRows.slice(i, i + BATCH_SIZE))
+      }
+
+      let totalInserted = 0
+      let totalUpdated = 0
+      let totalSkipped = 0
+      const allErrors: string[] = []
+
+      for (let i = 0; i < batches.length; i++) {
+        toast.loading(
+          `⏳ กำลังบันทึกข้อมูลส่วนที่ ${i + 1}/${batches.length}... (${Math.round(((i) / batches.length) * 100)}%)`,
+          { id: toastId }
+        )
+
+        const res = await fetch('/api/admin/courses/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ courses: batches[i] }),
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          toast.error(`❌ เกิดข้อผิดพลาดที่ส่วนที่ ${i + 1}: ${data.error ?? 'ไม่ทราบสาเหตุ'}`, { id: toastId })
+          return
+        }
+
+        totalInserted += data.inserted ?? 0
+        totalUpdated += data.updated ?? 0
+        totalSkipped += data.skipped ?? 0
+        if (data.errors?.length) allErrors.push(...data.errors)
+      }
+
+      // Step 3: Show final success toast
+      toast.success(
+        `✅ อัปโหลดสำเร็จทั้งหมด ${totalInserted + totalUpdated} รายวิชา`,
+        {
+          id: toastId,
+          duration: 7000,
+          description: [
+            `เพิ่มใหม่ ${totalInserted} วิชา, อัปเดต ${totalUpdated} วิชา, ข้าม ${totalSkipped} แถว`,
+            allErrors.length > 0
+              ? `⚠️ มีข้อผิดพลาด ${allErrors.length} รายการ: ${allErrors.slice(0, 3).join(', ')}${allErrors.length > 3 ? '...' : ''}`
+              : '',
+          ].filter(Boolean).join(' · '),
+        }
+      )
+
+      // Step 4: Refresh course list
+      fetchCourses(searchQuery, facultyFilter, 1)
+
     } catch (err) {
-      toast.error(`❌ เกิดข้อผิดพลาด: ${err instanceof Error ? err.message : 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้'}`, { id: toastId })
+      toast.error(
+        `❌ เกิดข้อผิดพลาด: ${err instanceof Error ? err.message : 'ไม่สามารถอ่านไฟล์ได้'}`,
+        { id: toastId }
+      )
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
