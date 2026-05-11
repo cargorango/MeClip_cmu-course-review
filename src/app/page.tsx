@@ -97,6 +97,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <p className="text-gray-500 text-sm sm:text-base">
             {tr.appDesc}
           </p>
+          <p className="text-xs text-gray-400 pt-1">
+            รวบรวมรีวิวมากกว่า 10,000 รายวิชา จากทุกคณะใน มช. ให้คุณเลือกอ่านเพื่อเตรียมตัว และร่วมแบ่งปันประสบการณ์ผ่านการรีวิวได้ที่นี่
+          </p>
         </div>
 
         {/* Home content — global search + discovery */}
