@@ -10,6 +10,7 @@ export interface SearchFilterState {
   facultyId: string
   credits: string
   sort: string
+  grade: string
 }
 
 interface SearchFiltersProps {
@@ -26,6 +27,7 @@ const DEFAULT_STATE: SearchFilterState = {
   facultyId: '',
   credits: '',
   sort: '',
+  grade: '',
 }
 
 export default function SearchFilters({
@@ -56,7 +58,8 @@ export default function SearchFilters({
     filters.q !== '' ||
     filters.facultyId !== '' ||
     filters.credits !== '' ||
-    filters.sort !== ''
+    filters.sort !== '' ||
+    filters.grade !== ''
 
   // Notify parent on filter change (debounce text input)
   useEffect(() => {
@@ -156,6 +159,15 @@ export default function SearchFilters({
         >
           <option value="">{lang === 'en' ? 'Sort by code' : 'เรียงตามรหัส'}</option>
           <option value="reviews">{lang === 'en' ? 'Most reviewed' : 'มีรีวิวมากสุด'}</option>
+        </select>
+
+        {/* Grade select */}
+        <select
+          value={filters.grade}
+          onChange={handleSelectChange('grade')}
+          className={`flex-1 min-w-[130px] border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 ${focusRing}`}
+        >
+          <option value="">{lang === 'en' ? 'All Grades' : 'ทุกเกรด'}</option>
           {GRADE_VALUES.map((g) => (
             <option key={g} value={g}>
               {lang === 'en' ? `Grade ${g}` : `เกรด ${g}`}

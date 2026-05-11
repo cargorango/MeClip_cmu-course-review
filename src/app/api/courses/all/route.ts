@@ -20,10 +20,11 @@ export async function GET(request: NextRequest) {
     const facultyId = searchParams.get('facultyId') ?? ''
     const credits = searchParams.get('credits') ?? ''
     const sort = searchParams.get('sort') ?? ''
+    const grade = searchParams.get('grade') ?? ''
     const isFreeElectiveParam = searchParams.get('isFreeElective')
     const isFreeElective = isFreeElectiveParam === 'true'
 
-    if (!q && !dept && !facultyId && !credits && !isFreeElective) {
+    if (!q && !dept && !facultyId && !credits && !isFreeElective && !grade) {
       return NextResponse.json({ courses: [], total: 0, page: 1, totalPages: 0 })
     }
 
@@ -129,6 +130,8 @@ export async function GET(request: NextRequest) {
     let sorted: typeof filtered
     if (sort === 'reviews') {
       sorted = sortByReviews(filtered)
+    } else if (grade && (GRADE_VALUES as readonly string[]).includes(grade)) {
+      sorted = sortByGrade(filtered, grade as GradeValue)
     } else if (sort && (GRADE_VALUES as readonly string[]).includes(sort)) {
       sorted = sortByGrade(filtered, sort as GradeValue)
     } else {

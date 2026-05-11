@@ -20,7 +20,7 @@ export function filterByFaculty<T extends CourseForFilterV2>(courses: T[], facul
  */
 export function filterByCredits<T extends CourseForFilterV2>(courses: T[], credits: string): T[] {
   if (credits === '') return courses
-  return courses.filter((c) => c.credits === credits)
+  return courses.filter((c) => c.credits.startsWith(credits))
 }
 
 /**

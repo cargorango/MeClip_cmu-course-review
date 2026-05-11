@@ -20,7 +20,7 @@ interface PageProps {
 async function getDiscoveryData() {
   // Fetch faculties and courses always (these tables exist)
   const [faculties, coursesRaw] = await Promise.all([
-    prisma.faculty.findMany({ select: { id: true, nameTh: true }, orderBy: { nameTh: 'asc' } }),
+    prisma.faculty.findMany({ select: { id: true, nameTh: true }, orderBy: { nameTh: 'asc' }, where: { nameTh: { not: 'นำเข้าจาก CSV' } } }),
     prisma.course.findMany({
       select: {
         id: true, code: true, name: true, nameTh: true, credits: true, isFreeElective: true,

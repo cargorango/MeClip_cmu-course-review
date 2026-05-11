@@ -9,7 +9,7 @@ interface CourseCardProps {
     nameTh: string
     name: string
     credits: string
-    faculty: { nameTh: string }
+    faculty?: { nameTh: string } | null
     reviewCount: number
     averageRating: number | null
     isFreeElective: boolean
@@ -51,9 +51,11 @@ export default function CourseCard({
             </span>
 
             {/* Faculty badge */}
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-              {course.faculty.nameTh}
-            </span>
+            {course.faculty?.nameTh && course.faculty.nameTh !== 'นำเข้าจาก CSV' && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                {course.faculty.nameTh}
+              </span>
+            )}
 
             {/* Free elective tag */}
             {showFreeElectiveTag && course.isFreeElective && (

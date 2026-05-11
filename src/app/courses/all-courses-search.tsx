@@ -12,7 +12,7 @@ interface CourseResult {
   name: string
   nameTh: string
   credits: string
-  faculty: { nameTh: string }
+  faculty: { nameTh: string } | null
   reviewCount: number
   averageRating: number | null
   isFreeElective: boolean
@@ -46,7 +46,7 @@ export default function AllCoursesSearch({
   const [visibleWithReviews, setVisibleWithReviews] = useState(PAGE_SIZE)
 
   const fetchCourses = useCallback(async (filters: SearchFilterState) => {
-    const isActive = !!(filters.q || filters.facultyId || filters.credits || filters.sort)
+    const isActive = !!(filters.q || filters.facultyId || filters.credits || filters.sort || filters.grade)
     setHasActiveFilter(isActive)
 
     if (!isActive) {
@@ -62,13 +62,14 @@ export default function AllCoursesSearch({
       if (filters.facultyId) params.set('facultyId', filters.facultyId)
       if (filters.credits) params.set('credits', filters.credits)
       if (filters.sort) params.set('sort', filters.sort)
+      if (filters.grade) params.set('grade', filters.grade)
       // Fetch a large page so client-side load-more works
       params.set('page', '1')
 
       const res = await fetch(`/api/courses/all?${params.toString()}`)
       if (res.ok) {
         const data = await res.json()
-        setResults(data.courses ?? [])
+        setResults(Array.isArray(data.courses) ? data.courses : [])
         setVisibleCount(PAGE_SIZE)
       }
 
