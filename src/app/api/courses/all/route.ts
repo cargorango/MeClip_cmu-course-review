@@ -46,6 +46,10 @@ export async function GET(request: NextRequest) {
     if (isFreeElective) {
       conditions.push({ isFreeElective: true })
     }
+    // Credits filter at DB level using startsWith
+    if (credits) {
+      conditions.push({ credits: { startsWith: credits } })
+    }
 
     const where = conditions.length > 0 ? { AND: conditions } : {}
 
@@ -123,8 +127,8 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Apply faculty and credits filters (pure logic)
-    const filtered = filterByFacultyAndCredits(enriched, facultyId, credits)
+    // Apply faculty and credits filters (pure logic — credits already filtered at DB level)
+    const filtered = filterByFacultyAndCredits(enriched, facultyId, '')
 
     // Apply sort
     let sorted: typeof filtered

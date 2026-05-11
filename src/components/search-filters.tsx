@@ -7,7 +7,8 @@ import type { Lang } from '@/lib/i18n'
 
 export interface SearchFilterState {
   q: string
-  facultyId: string
+  dept: string        // department-based faculty filter (replaces facultyId)
+  facultyId: string   // kept for backward compat, unused in new filter
   credits: string
   sort: string
   grade: string
@@ -24,15 +25,20 @@ interface SearchFiltersProps {
 
 const DEFAULT_STATE: SearchFilterState = {
   q: '',
+  dept: '',
   facultyId: '',
   credits: '',
   sort: '',
   grade: '',
 }
 
+interface DeptOption {
+  value: string   // the dept string sent to API (original "Faculty of X" or "FREE_ELECTIVE")
+  label: string   // display label (stripped)
+}
+
 export default function SearchFilters({
   lang,
-  faculties: facultiesProp,
   onFilterChange,
   initialState,
   placeholder,
@@ -42,8 +48,7 @@ export default function SearchFilters({
     ...DEFAULT_STATE,
     ...initialState,
   })
-  const [faculties, setFaculties] = useState<{ id: string; nameTh: string }[]>(facultiesProp ?? [])
-  const [creditOptions, setCreditOptions] = useState<string[]>([])
+  const [deptOptions, setDeptOptions] = useState<DeptOption[]>([])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isFirstRender = useRef(true)
 
@@ -58,36 +63,34 @@ export default function SearchFilters({
 
   const hasActiveFilter =
     filters.q !== '' ||
-    filters.facultyId !== '' ||
+    filters.dept !== '' ||
     filters.credits !== '' ||
     filters.sort !== '' ||
     filters.grade !== ''
 
-  // Fetch faculties from API (client-side, always fresh)
+  // Fetch departments from API (client-side, always fresh)
   useEffect(() => {
-    fetch('/api/faculties')
+    fetch('/api/departments')
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data.faculties) && data.faculties.length > 0) {
-          setFaculties(data.faculties)
+        const opts: DeptOption[] = []
+        if (data.hasFreeElective) {
+          opts.push({
+            value: 'FREE_ELECTIVE',
+            label: lang === 'en' ? 'Free Electives' : 'วิชาเลือกเสรี',
+          })
         }
+        if (Array.isArray(data.departments)) {
+          for (const d of data.departments) {
+            opts.push({ value: d, label: d })
+          }
+        }
+        setDeptOptions(opts)
       })
       .catch(() => {})
-  }, [])
+  }, [lang])
 
-  // Fetch distinct credits from API
-  useEffect(() => {
-    fetch('/api/credits')
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data.credits)) {
-          setCreditOptions(data.credits)
-        }
-      })
-      .catch(() => {})
-  }, [])
-
-  // Notify parent on filter change (debounce text input)
+  // Notify parent on filter change
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false
@@ -95,7 +98,7 @@ export default function SearchFilters({
     }
     onFilterChange(filters)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.facultyId, filters.credits, filters.sort, filters.grade])
+  }, [filters.dept, filters.credits, filters.sort, filters.grade])
 
   const handleQChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
@@ -107,8 +110,18 @@ export default function SearchFilters({
     }, 300)
   }
 
+  const handleCreditsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setFilters((prev) => ({ ...prev, credits: val }))
+
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      onFilterChange({ ...filters, credits: val })
+    }, 300)
+  }
+
   const handleSelectChange =
-    (field: keyof Omit<SearchFilterState, 'q'>) =>
+    (field: keyof Omit<SearchFilterState, 'q' | 'credits'>) =>
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       const val = e.target.value
       setFilters((prev) => ({ ...prev, [field]: val }))
@@ -150,33 +163,29 @@ export default function SearchFilters({
 
       {/* Secondary filters row */}
       <div className="flex flex-wrap gap-2">
-        {/* Faculty select — dynamic from DB */}
+        {/* Faculty/Department select — dynamic from DB */}
         <select
-          value={filters.facultyId}
-          onChange={handleSelectChange('facultyId')}
+          value={filters.dept}
+          onChange={handleSelectChange('dept')}
           className={`flex-1 min-w-[140px] border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 ${focusRing}`}
         >
           <option value="">{lang === 'en' ? 'All Faculties' : 'ทุกคณะ'}</option>
-          {faculties.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.nameTh}
+          {deptOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
             </option>
           ))}
         </select>
 
-        {/* Credits select — dynamic distinct values from DB */}
-        <select
+        {/* Credits — text input, filter by startsWith */}
+        <input
+          type="text"
+          inputMode="numeric"
           value={filters.credits}
-          onChange={handleSelectChange('credits')}
-          className={`w-36 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 ${focusRing}`}
-        >
-          <option value="">{lang === 'en' ? 'All Credits' : 'ทุกหน่วยกิต'}</option>
-          {creditOptions.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+          onChange={handleCreditsChange}
+          placeholder={lang === 'en' ? 'Credits' : 'หน่วยกิต'}
+          className={`w-28 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 ${focusRing}`}
+        />
 
         {/* Sort select */}
         <select

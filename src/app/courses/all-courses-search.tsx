@@ -46,7 +46,7 @@ export default function AllCoursesSearch({
   const [visibleWithReviews, setVisibleWithReviews] = useState(PAGE_SIZE)
 
   const fetchCourses = useCallback(async (filters: SearchFilterState) => {
-    const isActive = !!(filters.q || filters.facultyId || filters.credits || filters.sort || filters.grade)
+    const isActive = !!(filters.q || filters.dept || filters.facultyId || filters.credits || filters.sort || filters.grade)
     setHasActiveFilter(isActive)
 
     if (!isActive) {
@@ -59,7 +59,13 @@ export default function AllCoursesSearch({
     try {
       const params = new URLSearchParams()
       if (filters.q) params.set('q', filters.q)
-      if (filters.facultyId) params.set('facultyId', filters.facultyId)
+      // dept filter: FREE_ELECTIVE is a special value for isFreeElective=true
+      if (filters.dept === 'FREE_ELECTIVE') {
+        params.set('isFreeElective', 'true')
+      } else if (filters.dept) {
+        // Send the stripped dept name — API uses `contains` on department field
+        params.set('dept', filters.dept)
+      }
       if (filters.credits) params.set('credits', filters.credits)
       if (filters.sort) params.set('sort', filters.sort)
       if (filters.grade) params.set('grade', filters.grade)
