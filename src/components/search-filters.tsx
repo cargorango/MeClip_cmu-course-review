@@ -1,14 +1,14 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Search, X } from 'lucide-react'
 import { GRADE_VALUES } from '@/lib/grade-stats'
 import type { Lang } from '@/lib/i18n'
 
 export interface SearchFilterState {
   q: string
-  dept: string        // department-based faculty filter (replaces facultyId)
-  facultyId: string   // kept for backward compat, unused in new filter
+  dept: string
+  facultyId: string   // kept for backward compat
   credits: string
   sort: string
   grade: string
@@ -33,8 +33,8 @@ const DEFAULT_STATE: SearchFilterState = {
 }
 
 interface DeptOption {
-  value: string   // the dept string sent to API (original "Faculty of X" or "FREE_ELECTIVE")
-  label: string   // display label (stripped)
+  value: string
+  label: string
 }
 
 export default function SearchFilters({
@@ -52,6 +52,14 @@ export default function SearchFilters({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isFirstRender = useRef(true)
 
+  // Always keep a ref to the latest filters — prevents stale closure in callbacks
+  const filtersRef = useRef(filters)
+  filtersRef.current = filters
+
+  // Stable callback ref — onFilterChange may change between renders
+  const onFilterChangeRef = useRef(onFilterChange)
+  onFilterChangeRef.current = onFilterChange
+
   const focusRing =
     focusColor === 'purple'
       ? 'focus:ring-purple-500 focus:border-transparent'
@@ -68,7 +76,7 @@ export default function SearchFilters({
     filters.sort !== '' ||
     filters.grade !== ''
 
-  // Fetch departments from API (client-side, always fresh)
+  // Fetch departments from API
   useEffect(() => {
     fetch('/api/departments')
       .then((r) => r.json())
@@ -90,19 +98,21 @@ export default function SearchFilters({
       .catch(() => {})
   }, [lang])
 
-  // Notify parent on filter change — fires when any dropdown/select changes
-  // Use a ref to always have the latest filters value
-  const filtersRef = useRef(filters)
-  filtersRef.current = filters
-
+  // Trigger search immediately when dropdown values change
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false
       return
     }
-    onFilterChange(filtersRef.current)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Use filtersRef.current to always get the latest state
+    onFilterChangeRef.current(filtersRef.current)
   }, [filters.dept, filters.sort, filters.grade])
+
+  // Submit search with latest filters (no stale closure)
+  const submitSearch = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    onFilterChangeRef.current(filtersRef.current)
+  }, [])
 
   const handleQChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
@@ -110,13 +120,9 @@ export default function SearchFilters({
 
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      onFilterChange({ ...filters, q: val })
+      // Use functional update pattern to get latest state
+      onFilterChangeRef.current({ ...filtersRef.current, q: val })
     }, 300)
-  }
-
-  const handleSearchSubmit = () => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    onFilterChange(filters)
   }
 
   const handleCreditsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -125,7 +131,7 @@ export default function SearchFilters({
 
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      onFilterChange({ ...filters, credits: val })
+      onFilterChangeRef.current({ ...filtersRef.current, credits: val })
     }, 300)
   }
 
@@ -134,12 +140,13 @@ export default function SearchFilters({
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       const val = e.target.value
       setFilters((prev) => ({ ...prev, [field]: val }))
+      // Note: the useEffect above will fire after state update and call onFilterChange
     }
 
   const handleReset = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     setFilters(DEFAULT_STATE)
-    onFilterChange(DEFAULT_STATE)
+    onFilterChangeRef.current(DEFAULT_STATE)
   }
 
   return (
@@ -152,7 +159,7 @@ export default function SearchFilters({
             type="text"
             value={filters.q}
             onChange={handleQChange}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit()}
+            onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
             placeholder={searchPlaceholder}
             className={`w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 ${focusRing} bg-white transition-shadow`}
           />
@@ -162,7 +169,7 @@ export default function SearchFilters({
               onClick={() => {
                 if (debounceRef.current) clearTimeout(debounceRef.current)
                 setFilters((prev) => ({ ...prev, q: '' }))
-                onFilterChange({ ...filters, q: '' })
+                onFilterChangeRef.current({ ...filtersRef.current, q: '' })
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
               aria-label="ล้างคำค้นหา"
@@ -173,7 +180,7 @@ export default function SearchFilters({
         </div>
         <button
           type="button"
-          onClick={handleSearchSubmit}
+          onClick={submitSearch}
           className={`px-4 py-3 rounded-xl text-sm font-medium text-white transition-colors ${
             focusColor === 'purple'
               ? 'bg-purple-600 hover:bg-purple-700'
@@ -187,7 +194,7 @@ export default function SearchFilters({
 
       {/* Secondary filters row */}
       <div className="flex flex-wrap gap-2">
-        {/* Faculty/Department select — dynamic from DB */}
+        {/* Faculty/Department select */}
         <select
           value={filters.dept}
           onChange={handleSelectChange('dept')}
@@ -201,12 +208,13 @@ export default function SearchFilters({
           ))}
         </select>
 
-        {/* Credits — text input, filter by startsWith */}
+        {/* Credits — text input */}
         <input
           type="text"
           inputMode="numeric"
           value={filters.credits}
           onChange={handleCreditsChange}
+          onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
           placeholder={lang === 'en' ? 'Credits' : 'หน่วยกิต'}
           className={`w-28 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 ${focusRing}`}
         />
