@@ -14,7 +14,7 @@ import { getTopCoursesByLogCount, getCoursesWithReviews } from '@/lib/course-ran
 import { calculateAverageRating } from '@/lib/rating'
 
 interface PageProps {
-  searchParams: { lang?: string; q?: string; dept?: string }
+  searchParams: { lang?: string; q?: string; dept?: string; credits?: string; sort?: string; grade?: string }
 }
 
 async function getDiscoveryData() {
@@ -134,6 +134,9 @@ export default async function AllCoursesPage({ searchParams }: PageProps) {
             lang={lang}
             initialQ={searchParams.q ?? ''}
             initialDept={searchParams.dept ?? ''}
+            initialCredits={searchParams.credits ?? ''}
+            initialSort={searchParams.sort ?? ''}
+            initialGrade={searchParams.grade ?? ''}
             faculties={faculties}
             mostSearchedCourses={mostSearched}
             coursesWithReviews={withReviews}

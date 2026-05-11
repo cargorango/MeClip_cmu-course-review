@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Loader2, BookOpen, TrendingUp, MessageSquare } from 'lucide-react'
 import { type Lang } from '@/lib/i18n'
 import SearchFilters, { type SearchFilterState } from '@/components/search-filters'
@@ -22,6 +22,9 @@ interface Props {
   lang: Lang
   initialQ: string
   initialDept: string
+  initialCredits?: string
+  initialSort?: string
+  initialGrade?: string
   faculties: { id: string; nameTh: string }[]
   mostSearchedCourses: CourseResult[]
   coursesWithReviews: CourseResult[]
@@ -32,21 +35,43 @@ const PAGE_SIZE = 10
 export default function AllCoursesSearch({
   lang,
   initialQ,
+  initialDept,
+  initialCredits = '',
+  initialSort = '',
+  initialGrade = '',
   faculties,
   mostSearchedCourses,
   coursesWithReviews,
 }: Props) {
+  const initialFilters: SearchFilterState = {
+    q: initialQ,
+    dept: initialDept,
+    facultyId: '',
+    credits: initialCredits,
+    sort: initialSort,
+    grade: initialGrade,
+  }
+  const hasInitialFilter = !!(initialQ || initialDept || initialCredits || initialSort || initialGrade)
+
   const [results, setResults] = useState<CourseResult[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [currentFilters, setCurrentFilters] = useState<SearchFilterState | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(hasInitialFilter)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [hasActiveFilter, setHasActiveFilter] = useState(false)
+  const [hasActiveFilter, setHasActiveFilter] = useState(hasInitialFilter)
 
   // Discovery section load-more state
   const [visibleMostSearched, setVisibleMostSearched] = useState(PAGE_SIZE)
   const [visibleWithReviews, setVisibleWithReviews] = useState(PAGE_SIZE)
+
+  // Trigger initial search if URL params were passed (e.g. redirected from home page)
+  useEffect(() => {
+    if (hasInitialFilter) {
+      fetchCourses(initialFilters)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const buildParams = (filters: SearchFilterState, page: number) => {
     const params = new URLSearchParams()
@@ -129,7 +154,7 @@ export default function AllCoursesSearch({
           lang={lang}
           faculties={faculties}
           onFilterChange={fetchCourses}
-          initialState={{ q: initialQ }}
+          initialState={initialFilters}
           focusColor="blue"
         />
       </div>
