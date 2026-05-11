@@ -64,7 +64,8 @@ export default function AllCoursesSearch({
   }
 
   const fetchCourses = useCallback(async (filters: SearchFilterState) => {
-    const isActive = !!(filters.q || filters.dept || filters.facultyId || filters.credits || filters.sort || filters.grade)
+    // Active = any filter has a value (q is NOT required)
+    const isActive = !!(filters.q || filters.dept || filters.credits || filters.grade || filters.sort)
     setHasActiveFilter(isActive)
 
     if (!isActive) {

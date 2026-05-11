@@ -96,31 +96,8 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
     }
   }
 
-  // Only show curriculum label if it's a real curriculum (not auto-generated placeholders)
-  // Auto-generated curriculum IDs contain keywords like 'free-elective', 'general', 'csv-import'
-  // Also hide curriculum if curriculumYear is 0 or unrealistic (e.g. seeded placeholder data)
-  const AUTO_CURRICULUM_KEYWORDS = ['free-elective', 'general', 'csv-import', 'csv_import', 'import']
-  const isRealCurriculum = course.curriculum &&
-    !AUTO_CURRICULUM_KEYWORDS.some(kw => course.curriculum!.id.toLowerCase().includes(kw)) &&
-    course.curriculum.curriculumYear > 2000 &&
-    course.curriculum.curriculumYear < 2100
-
-  const programTypeLabel = isRealCurriculum && course.curriculum?.programType === 'REGULAR'
-    ? (lang === 'en' ? 'Regular' : 'ภาคปกติ')
-    : (lang === 'en' ? 'International' : 'นานาชาติ')
-  const curriculumLabel = isRealCurriculum
-    ? `${programTypeLabel} ${course.curriculum!.curriculumYear}`
-    : null
-
-  // Only show faculty if it's a real faculty (not auto-generated) and not "นำเข้าจาก CSV"
-  const AUTO_FACULTY_KEYWORDS = ['free-elective', 'general', 'csv-import', 'csv_import', 'import']
-  const CSV_FACULTY_NAMES = ['นำเข้าจาก csv', 'csv import', 'csv_import', 'imported']
-  const showFaculty = course.faculty &&
-    !AUTO_FACULTY_KEYWORDS.some(kw => course.faculty.id.toLowerCase().includes(kw)) &&
-    !CSV_FACULTY_NAMES.some(n => course.faculty.nameTh?.toLowerCase().includes(n)) &&
-    course.faculty.nameTh &&
-    course.faculty.nameTh.trim() !== '' &&
-    course.faculty.nameTh !== '-'
+  // Badges: only show codeEn and credits — faculty/curriculum data is unreliable (CSV import artifacts)
+  // Do NOT show faculty nameTh or curriculum label as they contain placeholder data
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -200,7 +177,7 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
             </div>
           </div>
 
-          {/* Badges row — codeEn + credits (วงกลมสีฟ้า) */}
+          {/* Badges row — codeEn + credits only (faculty/curriculum data unreliable) */}
           <div className="flex flex-wrap gap-2 pt-1">
             {course.codeEn && course.codeEn !== '-' && (
               <span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full font-medium">
@@ -210,16 +187,6 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
             {course.credits && course.credits !== '-' && (
               <span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full font-medium">
                 {lang === 'en' ? 'Credits' : 'หน่วยกิต'}: {course.credits}
-              </span>
-            )}
-            {showFaculty && course.faculty && (
-              <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
-                {course.faculty.nameTh}
-              </span>
-            )}
-            {curriculumLabel && (
-              <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
-                {curriculumLabel}
               </span>
             )}
           </div>

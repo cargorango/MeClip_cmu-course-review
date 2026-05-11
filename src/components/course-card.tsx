@@ -51,35 +51,6 @@ export default function CourseCard({
               {course.credits} หน่วยกิต
             </span>
 
-            {/* Faculty/Department badge — show department if available, otherwise faculty */}
-            {(() => {
-              const CSV_KEYWORDS = ['นำเข้าจาก csv', 'csv import', 'csv_import', 'import']
-              const dept = course.department
-              const facultyName = course.faculty?.nameTh
-
-              // Prefer department field (more reliable)
-              if (dept && dept !== '-' && dept !== '' &&
-                  !CSV_KEYWORDS.some(k => dept.toLowerCase().includes(k))) {
-                // Strip "Faculty of " prefix for display
-                const displayDept = dept.replace(/^Faculty of\s+/i, '').trim()
-                return (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                    {displayDept}
-                  </span>
-                )
-              }
-              // Fallback to faculty name only if it's not a CSV/placeholder value
-              if (facultyName && facultyName !== '-' && facultyName !== '' &&
-                  !CSV_KEYWORDS.some(k => facultyName.toLowerCase().includes(k))) {
-                return (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                    {facultyName}
-                  </span>
-                )
-              }
-              return null
-            })()}
-
             {/* Free elective tag */}
             {showFreeElectiveTag && course.isFreeElective && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">

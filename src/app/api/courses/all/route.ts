@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const isFreeElectiveParam = searchParams.get('isFreeElective')
     const isFreeElective = isFreeElectiveParam === 'true'
 
-    if (!q && !dept && !facultyId && !credits && !isFreeElective && !grade) {
+    if (!q && !dept && !facultyId && !credits && !isFreeElective && !grade && !sort) {
       return NextResponse.json({ courses: [], total: 0, page: 1, totalPages: 0 })
     }
 
