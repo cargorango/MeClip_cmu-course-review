@@ -15,7 +15,7 @@ export interface SearchFilterState {
 
 interface SearchFiltersProps {
   lang: Lang
-  faculties: { id: string; nameTh: string }[]
+  faculties?: { id: string; nameTh: string }[]
   onFilterChange: (filters: SearchFilterState) => void
   initialState?: Partial<SearchFilterState>
   placeholder?: string
@@ -32,7 +32,7 @@ const DEFAULT_STATE: SearchFilterState = {
 
 export default function SearchFilters({
   lang,
-  faculties,
+  faculties: facultiesProp,
   onFilterChange,
   initialState,
   placeholder,
@@ -42,6 +42,8 @@ export default function SearchFilters({
     ...DEFAULT_STATE,
     ...initialState,
   })
+  const [faculties, setFaculties] = useState<{ id: string; nameTh: string }[]>(facultiesProp ?? [])
+  const [creditOptions, setCreditOptions] = useState<string[]>([])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isFirstRender = useRef(true)
 
@@ -61,6 +63,30 @@ export default function SearchFilters({
     filters.sort !== '' ||
     filters.grade !== ''
 
+  // Fetch faculties from API (client-side, always fresh)
+  useEffect(() => {
+    fetch('/api/faculties')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.faculties) && data.faculties.length > 0) {
+          setFaculties(data.faculties)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // Fetch distinct credits from API
+  useEffect(() => {
+    fetch('/api/credits')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.credits)) {
+          setCreditOptions(data.credits)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   // Notify parent on filter change (debounce text input)
   useEffect(() => {
     if (isFirstRender.current) {
@@ -69,7 +95,7 @@ export default function SearchFilters({
     }
     onFilterChange(filters)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.facultyId, filters.credits, filters.sort])
+  }, [filters.facultyId, filters.credits, filters.sort, filters.grade])
 
   const handleQChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
@@ -83,12 +109,9 @@ export default function SearchFilters({
 
   const handleSelectChange =
     (field: keyof Omit<SearchFilterState, 'q'>) =>
-    (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
       const val = e.target.value
-      setFilters((prev) => {
-        const next = { ...prev, [field]: val }
-        return next
-      })
+      setFilters((prev) => ({ ...prev, [field]: val }))
     }
 
   const handleReset = () => {
@@ -127,7 +150,7 @@ export default function SearchFilters({
 
       {/* Secondary filters row */}
       <div className="flex flex-wrap gap-2">
-        {/* Faculty select */}
+        {/* Faculty select — dynamic from DB */}
         <select
           value={filters.facultyId}
           onChange={handleSelectChange('facultyId')}
@@ -141,15 +164,19 @@ export default function SearchFilters({
           ))}
         </select>
 
-        {/* Credits input */}
-        <input
-          type="number"
-          min="1"
+        {/* Credits select — dynamic distinct values from DB */}
+        <select
           value={filters.credits}
           onChange={handleSelectChange('credits')}
-          placeholder={lang === 'en' ? 'Credits' : 'หน่วยกิต'}
-          className={`w-28 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 ${focusRing}`}
-        />
+          className={`w-36 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 ${focusRing}`}
+        >
+          <option value="">{lang === 'en' ? 'All Credits' : 'ทุกหน่วยกิต'}</option>
+          {creditOptions.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
 
         {/* Sort select */}
         <select
@@ -183,7 +210,7 @@ export default function SearchFilters({
             className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
           >
             <X className="w-3.5 h-3.5" />
-            ล้างตัวกรอง
+            {lang === 'en' ? 'Clear' : 'ล้างตัวกรอง'}
           </button>
         )}
       </div>

@@ -17,10 +17,13 @@ export function filterByFaculty<T extends CourseForFilterV2>(courses: T[], facul
 /**
  * Pure function — filters courses by credits.
  * Returns all courses when credits is empty string.
+ * Supports both exact match (from dropdown) and prefix match (from text input).
  */
 export function filterByCredits<T extends CourseForFilterV2>(courses: T[], credits: string): T[] {
   if (credits === '') return courses
-  return courses.filter((c) => c.credits.startsWith(credits))
+  // Exact match first (for dropdown selection like "3(3-0-6)")
+  // Then prefix match (for text input like "3")
+  return courses.filter((c) => c.credits === credits || c.credits.startsWith(credits))
 }
 
 /**
