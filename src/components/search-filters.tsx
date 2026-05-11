@@ -90,15 +90,19 @@ export default function SearchFilters({
       .catch(() => {})
   }, [lang])
 
-  // Notify parent on filter change
+  // Notify parent on filter change — fires when any dropdown/select changes
+  // Use a ref to always have the latest filters value
+  const filtersRef = useRef(filters)
+  filtersRef.current = filters
+
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false
       return
     }
-    onFilterChange(filters)
+    onFilterChange(filtersRef.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.dept, filters.credits, filters.sort, filters.grade])
+  }, [filters.dept, filters.sort, filters.grade])
 
   const handleQChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value

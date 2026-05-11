@@ -97,8 +97,14 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
   }
 
   // Only show curriculum label if it's a real curriculum (not auto-generated placeholders)
-  const AUTO_CURRICULUM_IDS = ['curriculum-free-elective', 'curriculum-general', 'curriculum-csv-import']
-  const isRealCurriculum = course.curriculum && !AUTO_CURRICULUM_IDS.includes(course.curriculum.id)
+  // Auto-generated curriculum IDs contain keywords like 'free-elective', 'general', 'csv-import'
+  // Also hide curriculum if curriculumYear is 0 or unrealistic (e.g. seeded placeholder data)
+  const AUTO_CURRICULUM_KEYWORDS = ['free-elective', 'general', 'csv-import', 'csv_import', 'import']
+  const isRealCurriculum = course.curriculum &&
+    !AUTO_CURRICULUM_KEYWORDS.some(kw => course.curriculum!.id.toLowerCase().includes(kw)) &&
+    course.curriculum.curriculumYear > 2000 &&
+    course.curriculum.curriculumYear < 2100
+
   const programTypeLabel = isRealCurriculum && course.curriculum?.programType === 'REGULAR'
     ? (lang === 'en' ? 'Regular' : 'ภาคปกติ')
     : (lang === 'en' ? 'International' : 'นานาชาติ')
@@ -107,11 +113,14 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
     : null
 
   // Only show faculty if it's a real faculty (not auto-generated) and not "นำเข้าจาก CSV"
-  const AUTO_FACULTY_IDS = ['faculty-free-elective', 'faculty-general', 'faculty-csv-import']
-  const CSV_FACULTY_NAMES = ['นำเข้าจาก CSV', 'CSV Import', 'csv import']
+  const AUTO_FACULTY_KEYWORDS = ['free-elective', 'general', 'csv-import', 'csv_import', 'import']
+  const CSV_FACULTY_NAMES = ['นำเข้าจาก csv', 'csv import', 'csv_import', 'imported']
   const showFaculty = course.faculty &&
-    !AUTO_FACULTY_IDS.includes(course.faculty.id) &&
-    !CSV_FACULTY_NAMES.some(n => course.faculty.nameTh?.toLowerCase() === n.toLowerCase())
+    !AUTO_FACULTY_KEYWORDS.some(kw => course.faculty.id.toLowerCase().includes(kw)) &&
+    !CSV_FACULTY_NAMES.some(n => course.faculty.nameTh?.toLowerCase().includes(n)) &&
+    course.faculty.nameTh &&
+    course.faculty.nameTh.trim() !== '' &&
+    course.faculty.nameTh !== '-'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -180,7 +189,10 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
                 isLoggedIn={!!session?.user}
               />
               {/* Department badge — top right */}
-              {course.department && course.department !== '-' && (
+              {course.department &&
+                course.department !== '-' &&
+                !course.department.toLowerCase().includes('csv') &&
+                !course.department.toLowerCase().includes('import') && (
                 <span className="text-xs bg-red-50 text-red-700 border border-red-200 px-2.5 py-1 rounded-full font-medium whitespace-nowrap">
                   {course.department}
                 </span>
