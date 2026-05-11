@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { BookOpen, Loader2 } from 'lucide-react'
 import { type Lang, translations } from '@/lib/i18n'
@@ -24,7 +24,8 @@ interface CourseResult {
   name: string
   nameTh: string
   credits: string
-  faculty: { nameTh: string }
+  faculty: { nameTh: string } | null
+  department?: string | null
   reviewCount: number
   averageRating: number | null
   isFreeElective: boolean
@@ -49,34 +50,51 @@ export default function HomeContent({
 }: HomeContentProps) {
   const tr = translations[lang]
   const [results, setResults] = useState<CourseResult[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [currentFilters, setCurrentFilters] = useState<SearchFilterState | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [hasActiveFilter, setHasActiveFilter] = useState(!!initialQuery)
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+
+  const buildParams = (filters: SearchFilterState, page: number) => {
+    const params = new URLSearchParams()
+    if (filters.q) params.set('q', filters.q)
+    if (filters.dept === 'FREE_ELECTIVE') {
+      params.set('isFreeElective', 'true')
+    } else if (filters.dept) {
+      params.set('dept', filters.dept)
+    }
+    if (filters.credits) params.set('credits', filters.credits)
+    if (filters.sort) params.set('sort', filters.sort)
+    if (filters.grade) params.set('grade', filters.grade)
+    params.set('page', String(page))
+    return params
+  }
 
   const fetchCourses = useCallback(async (filters: SearchFilterState) => {
-    const isActive = !!(filters.q || filters.facultyId || filters.credits || filters.sort)
+    // Active = any filter has a value (q is NOT required)
+    const isActive = !!(filters.q || filters.dept || filters.credits || filters.grade || filters.sort)
     setHasActiveFilter(isActive)
 
     if (!isActive) {
       setResults([])
-      setVisibleCount(PAGE_SIZE)
+      setTotalCount(0)
+      setCurrentPage(1)
+      setCurrentFilters(null)
       return
     }
 
     setLoading(true)
+    setCurrentFilters(filters)
     try {
-      const params = new URLSearchParams()
-      if (filters.q) params.set('q', filters.q)
-      if (filters.facultyId) params.set('facultyId', filters.facultyId)
-      if (filters.credits) params.set('credits', filters.credits)
-      if (filters.sort) params.set('sort', filters.sort)
-      params.set('page', '1')
-
+      const params = buildParams(filters, 1)
       const res = await fetch(`/api/courses/all?${params.toString()}`)
       if (res.ok) {
         const data = await res.json()
-        setResults(data.courses ?? [])
-        setVisibleCount(PAGE_SIZE)
+        setResults(Array.isArray(data.courses) ? data.courses : [])
+        setTotalCount(typeof data.total === 'number' ? data.total : (data.courses?.length ?? 0))
+        setCurrentPage(1)
       }
 
       // Fire-and-forget search log
@@ -92,8 +110,25 @@ export default function HomeContent({
     }
   }, [])
 
-  const visibleResults = results.slice(0, visibleCount)
-  const hasMoreResults = results.length > visibleCount
+  const loadMore = useCallback(async () => {
+    if (!currentFilters || loadingMore) return
+    const nextPage = currentPage + 1
+    setLoadingMore(true)
+    try {
+      const params = buildParams(currentFilters, nextPage)
+      const res = await fetch(`/api/courses/all?${params.toString()}`)
+      if (res.ok) {
+        const data = await res.json()
+        const newCourses: CourseResult[] = Array.isArray(data.courses) ? data.courses : []
+        setResults((prev) => [...prev, ...newCourses])
+        setCurrentPage(nextPage)
+      }
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [currentFilters, currentPage, loadingMore])
+
+  const hasMoreResults = results.length < totalCount
 
   return (
     <>
@@ -119,7 +154,7 @@ export default function HomeContent({
       {hasActiveFilter && !loading && (
         <div className="space-y-3">
           <p className="text-sm text-gray-500">
-            {lang === 'en' ? `Found ${results.length} courses` : `พบ ${results.length} วิชา`}
+            {lang === 'en' ? `Found ${totalCount} courses` : `พบ ${totalCount} วิชา`}
           </p>
           {results.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center shadow-sm">
@@ -128,7 +163,7 @@ export default function HomeContent({
           ) : (
             <>
               <div className="grid grid-cols-1 gap-3">
-                {visibleResults.map(course => (
+                {results.map(course => (
                   <CourseCard
                     key={course.id}
                     course={course}
@@ -139,10 +174,18 @@ export default function HomeContent({
               </div>
               {hasMoreResults && (
                 <button
-                  onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
-                  className="w-full py-2.5 text-sm text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="w-full py-2.5 text-sm text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors disabled:opacity-50"
                 >
-                  {lang === 'en' ? 'Load More' : 'โหลดเพิ่มเติม'} ({results.length - visibleCount} {lang === 'en' ? 'remaining' : 'รายการที่เหลือ'})
+                  {loadingMore ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {lang === 'en' ? 'Loading...' : 'กำลังโหลด...'}
+                    </span>
+                  ) : (
+                    `${lang === 'en' ? 'Load More' : 'โหลดเพิ่มเติม'} (${totalCount - results.length} ${lang === 'en' ? 'remaining' : 'รายการที่เหลือ'})`
+                  )}
                 </button>
               )}
             </>
