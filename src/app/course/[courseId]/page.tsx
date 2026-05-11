@@ -66,7 +66,7 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
     : null
 
   // Only show curriculum label if it's a real curriculum (not auto-generated placeholders)
-  const AUTO_CURRICULUM_IDS = ['curriculum-free-elective', 'curriculum-general']
+  const AUTO_CURRICULUM_IDS = ['curriculum-free-elective', 'curriculum-general', 'curriculum-csv-import']
   const isRealCurriculum = course.curriculum && !AUTO_CURRICULUM_IDS.includes(course.curriculum.id)
   const programTypeLabel = isRealCurriculum && course.curriculum?.programType === 'REGULAR'
     ? (lang === 'en' ? 'Regular' : 'ภาคปกติ')
@@ -76,7 +76,7 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
     : null
 
   // Only show faculty if it's a real faculty (not auto-generated)
-  const AUTO_FACULTY_IDS = ['faculty-free-elective', 'faculty-general']
+  const AUTO_FACULTY_IDS = ['faculty-free-elective', 'faculty-general', 'faculty-csv-import']
   const showFaculty = !AUTO_FACULTY_IDS.includes(course.faculty.id)
 
   return (
