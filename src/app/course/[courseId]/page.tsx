@@ -106,9 +106,12 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
     ? `${programTypeLabel} ${course.curriculum!.curriculumYear}`
     : null
 
-  // Only show faculty if it's a real faculty (not auto-generated)
+  // Only show faculty if it's a real faculty (not auto-generated) and not "นำเข้าจาก CSV"
   const AUTO_FACULTY_IDS = ['faculty-free-elective', 'faculty-general', 'faculty-csv-import']
-  const showFaculty = !AUTO_FACULTY_IDS.includes(course.faculty.id)
+  const CSV_FACULTY_NAMES = ['นำเข้าจาก CSV', 'CSV Import', 'csv import']
+  const showFaculty = course.faculty &&
+    !AUTO_FACULTY_IDS.includes(course.faculty.id) &&
+    !CSV_FACULTY_NAMES.some(n => course.faculty.nameTh?.toLowerCase() === n.toLowerCase())
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -197,7 +200,7 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
                 {lang === 'en' ? 'Credits' : 'หน่วยกิต'}: {course.credits}
               </span>
             )}
-            {showFaculty && (
+            {showFaculty && course.faculty && (
               <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
                 {course.faculty.nameTh}
               </span>

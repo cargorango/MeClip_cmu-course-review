@@ -110,6 +110,11 @@ export default function SearchFilters({
     }, 300)
   }
 
+  const handleSearchSubmit = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    onFilterChange(filters)
+  }
+
   const handleCreditsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     setFilters((prev) => ({ ...prev, credits: val }))
@@ -136,29 +141,44 @@ export default function SearchFilters({
   return (
     <div className="space-y-3">
       {/* Text search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-        <input
-          type="text"
-          value={filters.q}
-          onChange={handleQChange}
-          placeholder={searchPlaceholder}
-          className={`w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 ${focusRing} bg-white transition-shadow`}
-        />
-        {filters.q && (
-          <button
-            type="button"
-            onClick={() => {
-              if (debounceRef.current) clearTimeout(debounceRef.current)
-              setFilters((prev) => ({ ...prev, q: '' }))
-              onFilterChange({ ...filters, q: '' })
-            }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="ล้างคำค้นหา"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <input
+            type="text"
+            value={filters.q}
+            onChange={handleQChange}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit()}
+            placeholder={searchPlaceholder}
+            className={`w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 ${focusRing} bg-white transition-shadow`}
+          />
+          {filters.q && (
+            <button
+              type="button"
+              onClick={() => {
+                if (debounceRef.current) clearTimeout(debounceRef.current)
+                setFilters((prev) => ({ ...prev, q: '' }))
+                onFilterChange({ ...filters, q: '' })
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              aria-label="ล้างคำค้นหา"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleSearchSubmit}
+          className={`px-4 py-3 rounded-xl text-sm font-medium text-white transition-colors ${
+            focusColor === 'purple'
+              ? 'bg-purple-600 hover:bg-purple-700'
+              : 'bg-blue-600 hover:bg-blue-700'
+          }`}
+          aria-label="ค้นหา"
+        >
+          <Search className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Secondary filters row */}
