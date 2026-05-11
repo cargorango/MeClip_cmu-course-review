@@ -32,22 +32,34 @@ export default async function ProfilePage() {
     redirect('/login')
   }
 
-  // Fetch bookmarks
-  const bookmarks = await prisma.courseBookmark.findMany({
-    where: { userId: user.id },
-    include: {
-      course: {
-        select: {
-          id: true, code: true, nameTh: true, name: true, credits: true, isFreeElective: true,
-          faculty: { select: { nameTh: true } },
-          reviewRoom: {
-            select: { _count: { select: { messages: { where: { isDeleted: false } } } } },
+  // Fetch bookmarks (table may not exist yet in production)
+  let bookmarks: {
+    id: string
+    course: {
+      id: string; code: string; nameTh: string; name: string; credits: string
+      isFreeElective: boolean; faculty: { nameTh: string }
+      reviewRoom: { _count: { messages: number } } | null
+    }
+  }[] = []
+  try {
+    bookmarks = await prisma.courseBookmark.findMany({
+      where: { userId: user.id },
+      include: {
+        course: {
+          select: {
+            id: true, code: true, nameTh: true, name: true, credits: true, isFreeElective: true,
+            faculty: { select: { nameTh: true } },
+            reviewRoom: {
+              select: { _count: { select: { messages: { where: { isDeleted: false } } } } },
+            },
           },
         },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-  })
+      orderBy: { createdAt: 'desc' },
+    })
+  } catch {
+    // CourseBookmark table doesn't exist yet in production
+  }
 
   const uniqueCoursesReviewed = new Set(user.ratings.map(r => r.courseId)).size
   const reviewerLevel = calculateReviewerLevel(uniqueCoursesReviewed)

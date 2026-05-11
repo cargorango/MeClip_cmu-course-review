@@ -50,19 +50,23 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
       ratings: { select: { rating: true, userId: true } },
       faculty: { select: { id: true, name: true, nameTh: true } },
       curriculum: { select: { id: true, programType: true, curriculumYear: true } },
-      reviewRoom: {
-        select: {
-          messages: {
-            where: { isDeleted: false },
-            select: { grade: true },
-          },
-        },
-      },
     },
   })
 
   if (!course) {
     notFound()
+  }
+
+  // Fetch messages with grade separately — grade column may not exist yet in production
+  let messageGrades: (string | null)[] = []
+  try {
+    const reviewRoom = await prisma.reviewRoom.findUnique({
+      where: { courseId },
+      select: { messages: { where: { isDeleted: false }, select: { grade: true } } },
+    })
+    messageGrades = reviewRoom?.messages.map(m => m.grade) ?? []
+  } catch {
+    // grade column doesn't exist yet — skip grade stats
   }
 
   const ratings = course.ratings.map(r => r.rating)
@@ -77,16 +81,20 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
     ? (course.ratings.find(r => r.userId === session.user.id)?.rating ?? null)
     : null
 
-  // Compute grade stats from messages
-  const gradeValues = course.reviewRoom?.messages.map(m => m.grade) ?? []
-  const gradeStats = computeGradeStats(gradeValues)
+  // Compute grade stats from messages (grade field may not exist yet — graceful fallback)
+  const gradeStats = computeGradeStats(messageGrades)
 
-  // Fetch bookmark status for current user
-  const isBookmarked = session?.user?.id
-    ? !!(await prisma.courseBookmark.findUnique({
+  // Fetch bookmark status for current user (table may not exist yet)
+  let isBookmarked = false
+  if (session?.user?.id) {
+    try {
+      isBookmarked = !!(await prisma.courseBookmark.findUnique({
         where: { courseId_userId: { courseId, userId: session.user.id } },
       }))
-    : false
+    } catch {
+      // CourseBookmark table doesn't exist yet in production
+    }
+  }
 
   // Only show curriculum label if it's a real curriculum (not auto-generated placeholders)
   const AUTO_CURRICULUM_IDS = ['curriculum-free-elective', 'curriculum-general', 'curriculum-csv-import']

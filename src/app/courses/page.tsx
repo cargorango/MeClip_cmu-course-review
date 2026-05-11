@@ -18,10 +18,9 @@ interface PageProps {
 }
 
 async function getDiscoveryData() {
-  const [faculties, viewCounts, searchCounts, coursesRaw] = await Promise.all([
+  // Fetch faculties and courses always (these tables exist)
+  const [faculties, coursesRaw] = await Promise.all([
     prisma.faculty.findMany({ select: { id: true, nameTh: true }, orderBy: { nameTh: 'asc' } }),
-    prisma.courseViewLog.groupBy({ by: ['courseId'], _count: { courseId: true } }),
-    prisma.courseSearchLog.groupBy({ by: ['courseId'], where: { courseId: { not: null } }, _count: { courseId: true } }),
     prisma.course.findMany({
       select: {
         id: true, code: true, name: true, nameTh: true, credits: true, isFreeElective: true,
@@ -33,6 +32,18 @@ async function getDiscoveryData() {
       },
     }),
   ])
+
+  // Gracefully handle new tables that may not exist yet in production
+  let viewCounts: { courseId: string; _count: { courseId: number } }[] = []
+  let searchCounts: { courseId: string | null; _count: { courseId: number } }[] = []
+  try {
+    ;[viewCounts, searchCounts] = await Promise.all([
+      prisma.courseViewLog.groupBy({ by: ['courseId'], _count: { courseId: true } }),
+      prisma.courseSearchLog.groupBy({ by: ['courseId'], where: { courseId: { not: null } }, _count: { courseId: true } }),
+    ])
+  } catch {
+    // Tables don't exist yet — skip log counts, mostSearched will be empty
+  }
 
   // Build log count map
   const logCountMap = new Map<string, number>()
