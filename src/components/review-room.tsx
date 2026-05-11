@@ -4,13 +4,18 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Send, Loader2, Pencil, Check, X, EyeOff, Eye } from 'lucide-react'
 import { getSupabaseClient } from '@/lib/supabase-client'
 import { formatStatus } from '@/lib/status-formatter'
+import GradeSelector from '@/components/grade-selector'
+import LikeButton from '@/components/like-button'
 
 interface Message {
   id: string
   content: string
+  grade: string | null
   createdAt: string
   editedAt: string | null
   isOwn: boolean
+  likeCount: number
+  likedByUser: boolean
   sender: {
     displayName: string
     reviewerLevel: string | null
@@ -36,6 +41,17 @@ const LEVEL_COLORS: Record<string, string> = {
   'ตำนานมหาลัย': 'bg-purple-100 text-purple-700',
 }
 
+const GRADE_COLORS: Record<string, string> = {
+  'A': 'bg-green-100 text-green-700',
+  'B+': 'bg-emerald-100 text-emerald-700',
+  'B': 'bg-teal-100 text-teal-700',
+  'C+': 'bg-yellow-100 text-yellow-700',
+  'C': 'bg-orange-100 text-orange-700',
+  'D+': 'bg-red-100 text-red-700',
+  'D': 'bg-red-200 text-red-800',
+  'F': 'bg-gray-200 text-gray-700',
+}
+
 function formatTime(iso: string) {
   const d = new Date(iso)
   return d.toLocaleString('th-TH', {
@@ -56,6 +72,7 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [input, setInput] = useState('')
+  const [grade, setGrade] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
   const [connected, setConnected] = useState(true)
@@ -200,27 +217,31 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
     setSendError('')
 
     const tempId = `temp-${Date.now()}`
-    // Build anonymous placeholder using formatStatus with current profile
     const anonymousPlaceholder = isAnonymous
       ? formatStatus(userProfile)
       : 'คุณ'
     const tempMsg: Message = {
       id: tempId,
       content: trimmed,
+      grade: null,
       createdAt: new Date().toISOString(),
       editedAt: null,
       isOwn: true,
+      likeCount: 0,
+      likedByUser: false,
       sender: { displayName: anonymousPlaceholder, reviewerLevel: null },
     }
     setMessages(prev => [...prev, tempMsg])
     setInput('')
+    const sentGrade = grade
+    setGrade(null)
     scrollToBottom()
 
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ courseId, content: trimmed, isAnonymous }),
+        body: JSON.stringify({ courseId, content: trimmed, isAnonymous, grade: sentGrade }),
       })
 
       if (res.ok) {
@@ -231,12 +252,14 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
       } else {
         setMessages(prev => prev.filter(m => m.id !== tempId))
         setInput(trimmed)
+        setGrade(sentGrade)
         const data = await res.json()
         setSendError(data.error ?? 'เกิดข้อผิดพลาด')
       }
     } catch {
       setMessages(prev => prev.filter(m => m.id !== tempId))
       setInput(trimmed)
+      setGrade(sentGrade)
       setSendError('เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
       setSending(false)
@@ -297,7 +320,7 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
   }
 
   return (
-    <div className="flex flex-col h-[500px]">
+    <div className="flex flex-col h-[560px]">
       {/* Connection status */}
       {!connected && (
         <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-xs text-yellow-700 flex items-center gap-2">
@@ -344,6 +367,12 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
                 {msg.sender.reviewerLevel && (
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${LEVEL_COLORS[msg.sender.reviewerLevel] ?? 'bg-gray-100 text-gray-600'}`}>
                     {msg.sender.reviewerLevel}
+                  </span>
+                )}
+                {/* Grade badge */}
+                {msg.grade && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${GRADE_COLORS[msg.grade] ?? 'bg-gray-100 text-gray-600'}`}>
+                    เกรด {msg.grade}
                   </span>
                 )}
                 <span className="text-xs text-gray-400 ml-auto">{formatTime(msg.createdAt)}</span>
@@ -395,9 +424,22 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
                   </div>
                 </div>
               ) : (
-                <p className={`text-sm text-gray-700 rounded-lg px-3 py-2 leading-relaxed ${msg.id.startsWith('temp-') ? 'bg-blue-50 opacity-70' : 'bg-gray-50'}`}>
-                  {msg.content}
-                </p>
+                <div>
+                  <p className={`text-sm text-gray-700 rounded-lg px-3 py-2 leading-relaxed ${msg.id.startsWith('temp-') ? 'bg-blue-50 opacity-70' : 'bg-gray-50'}`}>
+                    {msg.content}
+                  </p>
+                  {/* Like button — only for real (non-temp) messages */}
+                  {!msg.id.startsWith('temp-') && (
+                    <div className="mt-1 pl-3">
+                      <LikeButton
+                        messageId={msg.id}
+                        initialCount={msg.likeCount}
+                        initialLiked={msg.likedByUser}
+                        isLoggedIn={isLoggedIn}
+                      />
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           ))
@@ -439,6 +481,13 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
                 />
               </button>
             </div>
+
+            {/* Grade selector */}
+            <GradeSelector
+              value={grade}
+              onChange={setGrade}
+              label="เกรดที่ได้ (ไม่บังคับ)"
+            />
 
             <form onSubmit={handleSend} className="flex gap-2">
               <input

@@ -2,9 +2,13 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { calculateAverageRating } from '@/lib/rating'
+import { computeGradeStats } from '@/lib/grade-stats'
 import { auth } from '../../../../auth'
 import DifficultyRating from '@/components/difficulty-rating'
 import ReviewRoom from '@/components/review-room'
+import GradeStats from '@/components/grade-stats'
+import BookmarkButton from '@/components/bookmark-button'
+import ViewLogger from '@/components/view-logger'
 import FeedbackButton from '@/components/feedback-button'
 import LangToggle from '@/components/lang-toggle'
 import { GraduationCap, ArrowLeft, BookOpen } from 'lucide-react'
@@ -46,6 +50,14 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
       ratings: { select: { rating: true, userId: true } },
       faculty: { select: { id: true, name: true, nameTh: true } },
       curriculum: { select: { id: true, programType: true, curriculumYear: true } },
+      reviewRoom: {
+        select: {
+          messages: {
+            where: { isDeleted: false },
+            select: { grade: true },
+          },
+        },
+      },
     },
   })
 
@@ -64,6 +76,17 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
   const currentUserRating = session?.user?.id
     ? (course.ratings.find(r => r.userId === session.user.id)?.rating ?? null)
     : null
+
+  // Compute grade stats from messages
+  const gradeValues = course.reviewRoom?.messages.map(m => m.grade) ?? []
+  const gradeStats = computeGradeStats(gradeValues)
+
+  // Fetch bookmark status for current user
+  const isBookmarked = session?.user?.id
+    ? !!(await prisma.courseBookmark.findUnique({
+        where: { courseId_userId: { courseId, userId: session.user.id } },
+      }))
+    : false
 
   // Only show curriculum label if it's a real curriculum (not auto-generated placeholders)
   const AUTO_CURRICULUM_IDS = ['curriculum-free-elective', 'curriculum-general', 'curriculum-csv-import']
@@ -113,6 +136,9 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+        {/* Fire-and-forget view log */}
+        <ViewLogger courseId={courseId} />
+
         {/* Back button */}
         <Link
           href={`/?lang=${lang}`}
@@ -135,12 +161,20 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
                 <p className="text-sm text-gray-500 mt-0.5">{course.name}</p>
               </div>
             </div>
-            {/* Department badge — top right (วงกลมสีแดง) */}
-            {course.department && course.department !== '-' && (
-              <span className="shrink-0 text-xs bg-red-50 text-red-700 border border-red-200 px-2.5 py-1 rounded-full font-medium whitespace-nowrap">
-                {course.department}
-              </span>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Bookmark button */}
+              <BookmarkButton
+                courseId={courseId}
+                initialBookmarked={isBookmarked}
+                isLoggedIn={!!session?.user}
+              />
+              {/* Department badge — top right */}
+              {course.department && course.department !== '-' && (
+                <span className="text-xs bg-red-50 text-red-700 border border-red-200 px-2.5 py-1 rounded-full font-medium whitespace-nowrap">
+                  {course.department}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Badges row — codeEn + credits (วงกลมสีฟ้า) */}
@@ -217,6 +251,13 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
             ratingDistribution={ratingDistribution}
           />
         </div>
+
+        {/* Grade statistics */}
+        {gradeStats && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+            <GradeStats stats={gradeStats} lang={lang} />
+          </div>
+        )}
 
         {/* Review room */}
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">

@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { GraduationCap, LogOut, User } from 'lucide-react'
 import ProfileForm from './profile-form'
 import FeedbackButton from '@/components/feedback-button'
+import CourseCard from '@/components/course-card'
 
 export default async function ProfilePage() {
   const session = await auth()
@@ -30,6 +31,23 @@ export default async function ProfilePage() {
   if (!user) {
     redirect('/login')
   }
+
+  // Fetch bookmarks
+  const bookmarks = await prisma.courseBookmark.findMany({
+    where: { userId: user.id },
+    include: {
+      course: {
+        select: {
+          id: true, code: true, nameTh: true, name: true, credits: true, isFreeElective: true,
+          faculty: { select: { nameTh: true } },
+          reviewRoom: {
+            select: { _count: { select: { messages: { where: { isDeleted: false } } } } },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  })
 
   const uniqueCoursesReviewed = new Set(user.ratings.map(r => r.courseId)).size
   const reviewerLevel = calculateReviewerLevel(uniqueCoursesReviewed)
@@ -140,6 +158,36 @@ export default async function ProfilePage() {
                   </div>
                   <span className="text-sm font-medium text-gray-600">{RATING_LABELS[r.rating]}</span>
                 </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Bookmarks — วิชาที่สนใจ */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          <h2 className="text-base font-semibold text-gray-900 mb-4">วิชาที่สนใจ</h2>
+          {bookmarks.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">ยังไม่มีวิชาที่บันทึกไว้</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {bookmarks.map(b => (
+                <CourseCard
+                  key={b.id}
+                  course={{
+                    id: b.course.id,
+                    code: b.course.code,
+                    nameTh: b.course.nameTh,
+                    name: b.course.name,
+                    credits: b.course.credits,
+                    faculty: b.course.faculty,
+                    reviewCount: b.course.reviewRoom?._count.messages ?? 0,
+                    averageRating: null,
+                    isFreeElective: b.course.isFreeElective,
+                  }}
+                  lang="th"
+                  showReviewCount
+                  showFreeElectiveTag={b.course.isFreeElective}
+                />
               ))}
             </div>
           )}

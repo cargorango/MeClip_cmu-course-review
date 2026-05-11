@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { calculateReviewerLevel } from '@/lib/reviewer-level'
 import { containsProfanity } from '@/lib/profanity'
 import { formatStatus } from '@/lib/status-formatter'
+import { GRADE_VALUES } from '@/lib/grade-stats'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,12 +74,28 @@ export async function GET(request: NextRequest) {
             ratings: { select: { courseId: true } },
           },
         },
+        _count: {
+          select: { likes: true },
+        },
       },
     })
 
     const hasMore = messages.length > limit
     const pageMessages = hasMore ? messages.slice(0, limit) : messages
     const nextCursor = hasMore ? pageMessages[pageMessages.length - 1].id : null
+
+    // Fetch likes for current user if logged in
+    let userLikes = new Set<string>()
+    if (currentUserId) {
+      const likes = await prisma.messageLike.findMany({
+        where: {
+          userId: currentUserId,
+          messageId: { in: pageMessages.map((m) => m.id) },
+        },
+        select: { messageId: true },
+      })
+      userLikes = new Set(likes.map((l) => l.messageId))
+    }
 
     const formattedMessages = pageMessages.map(msg => {
       const { displayName, reviewerLevel } = getSenderLabel({
@@ -94,9 +111,12 @@ export async function GET(request: NextRequest) {
       return {
         id: msg.id,
         content: msg.content,
+        grade: msg.grade,
         createdAt: msg.createdAt.toISOString(),
         editedAt: msg.editedAt?.toISOString() ?? null,
         isOwn: msg.user.id === currentUserId,
+        likeCount: msg._count.likes,
+        likedByUser: userLikes.has(msg.id),
         sender: {
           displayName,
           reviewerLevel,
@@ -119,7 +139,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { courseId, content, isAnonymous } = body
+    const { courseId, content, isAnonymous, grade } = body
 
     if (!content || !content.trim()) {
       return NextResponse.json({ error: 'กรุณากรอกข้อความ' }, { status: 400 })
@@ -127,6 +147,11 @@ export async function POST(request: NextRequest) {
 
     if (containsProfanity(content)) {
       return NextResponse.json({ error: 'ข้อความมีคำที่ไม่เหมาะสม กรุณาแก้ไขและส่งใหม่' }, { status: 400 })
+    }
+
+    // Validate grade if provided
+    if (grade !== undefined && grade !== null && !(GRADE_VALUES as readonly string[]).includes(grade)) {
+      return NextResponse.json({ error: 'เกรดไม่ถูกต้อง' }, { status: 400 })
     }
 
     const course = await prisma.course.findUnique({ where: { id: courseId } })
@@ -161,6 +186,7 @@ export async function POST(request: NextRequest) {
         roomId: reviewRoom.id,
         userId: session.user.id,
         content: content.trim(),
+        grade: grade ?? null,
         // Snapshot at send time — locked forever
         wasAnonymous,
         senderStatus: sender?.status ?? null,

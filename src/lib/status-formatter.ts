@@ -61,3 +61,56 @@ export function formatStatus(input: StatusFormatterInput): string {
   // Fallback for unknown/null status — never return empty string
   return 'ไม่ระบุตัวตน'
 }
+
+/**
+ * Pure function — formats user status into an anonymous Thai label string.
+ * Used for displaying reviewer identity without revealing personal details.
+ * Never throws, never returns an empty string.
+ *
+ * Format rules:
+ *   STUDENT + faculty + year  → "นักศึกษาคณะ [faculty] ชั้นปี [year]"
+ *   STUDENT + faculty only    → "นักศึกษาคณะ [faculty]"
+ *   STUDENT + year only       → "นักศึกษา ชั้นปี [year]"
+ *   STUDENT + neither         → "นักศึกษา"
+ *   TEACHER + faculty         → "อาจารย์คณะ [faculty]"
+ *   TEACHER + no faculty      → "อาจารย์"
+ *   ALUMNI  + alumniYear      → "ศิษย์เก่ารุ่น [alumniYear]"
+ *   ALUMNI  + no alumniYear   → "ศิษย์เก่า"
+ */
+export function formatAnonymousLabel(
+  status: UserStatus | string | null | undefined,
+  faculty?: string | null,
+  yearOfStudy?: number | null,
+  alumniYear?: number | null
+): string {
+  const facultyTrimmed = faculty?.trim() || null
+
+  if (status === 'STUDENT') {
+    if (facultyTrimmed && yearOfStudy != null) {
+      return `นักศึกษาคณะ ${facultyTrimmed} ชั้นปี ${yearOfStudy}`
+    }
+    if (facultyTrimmed) {
+      return `นักศึกษาคณะ ${facultyTrimmed}`
+    }
+    if (yearOfStudy != null) {
+      return `นักศึกษา ชั้นปี ${yearOfStudy}`
+    }
+    return 'นักศึกษา'
+  }
+
+  if (status === 'TEACHER') {
+    if (facultyTrimmed) {
+      return `อาจารย์คณะ ${facultyTrimmed}`
+    }
+    return 'อาจารย์'
+  }
+
+  if (status === 'ALUMNI') {
+    if (alumniYear != null) {
+      return `ศิษย์เก่ารุ่น ${alumniYear}`
+    }
+    return 'ศิษย์เก่า'
+  }
+
+  return 'ไม่ระบุตัวตน'
+}

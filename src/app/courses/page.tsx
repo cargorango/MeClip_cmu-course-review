@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { auth } from '../../../auth'
+import { prisma } from '@/lib/prisma'
 import LangToggle from '@/components/lang-toggle'
 import FeedbackButton from '@/components/feedback-button'
 import { GraduationCap, ArrowLeft, BookOpen } from 'lucide-react'
@@ -9,15 +10,66 @@ import UserMenu from '@/components/user-menu'
 import { isAdminRole } from '@/lib/roles'
 import { requireCompleteProfile } from '@/lib/check-onboarding'
 import AllCoursesSearch from './all-courses-search'
+import { getTopCoursesByLogCount, getCoursesWithReviews } from '@/lib/course-ranking'
+import { calculateAverageRating } from '@/lib/rating'
 
 interface PageProps {
   searchParams: { lang?: string; q?: string; dept?: string }
+}
+
+async function getDiscoveryData() {
+  const [faculties, viewCounts, searchCounts, coursesRaw] = await Promise.all([
+    prisma.faculty.findMany({ select: { id: true, nameTh: true }, orderBy: { nameTh: 'asc' } }),
+    prisma.courseViewLog.groupBy({ by: ['courseId'], _count: { courseId: true } }),
+    prisma.courseSearchLog.groupBy({ by: ['courseId'], where: { courseId: { not: null } }, _count: { courseId: true } }),
+    prisma.course.findMany({
+      select: {
+        id: true, code: true, name: true, nameTh: true, credits: true, isFreeElective: true,
+        faculty: { select: { nameTh: true } },
+        ratings: { select: { rating: true } },
+        reviewRoom: {
+          select: { _count: { select: { messages: { where: { isDeleted: false } } } } },
+        },
+      },
+    }),
+  ])
+
+  // Build log count map
+  const logCountMap = new Map<string, number>()
+  for (const row of viewCounts) {
+    logCountMap.set(row.courseId, (logCountMap.get(row.courseId) ?? 0) + row._count.courseId)
+  }
+  for (const row of searchCounts) {
+    if (row.courseId) {
+      logCountMap.set(row.courseId, (logCountMap.get(row.courseId) ?? 0) + row._count.courseId)
+    }
+  }
+
+  const enriched = coursesRaw.map(c => ({
+    id: c.id,
+    code: c.code,
+    name: c.name,
+    nameTh: c.nameTh,
+    credits: c.credits,
+    isFreeElective: c.isFreeElective,
+    faculty: c.faculty,
+    reviewCount: c.reviewRoom?._count.messages ?? 0,
+    averageRating: calculateAverageRating(c.ratings.map(r => r.rating)),
+    logCount: logCountMap.get(c.id) ?? 0,
+  }))
+
+  const mostSearched = getTopCoursesByLogCount(enriched, 20)
+  const withReviews = getCoursesWithReviews(enriched).slice(0, 20)
+
+  return { faculties, mostSearched, withReviews }
 }
 
 export default async function AllCoursesPage({ searchParams }: PageProps) {
   const session = await auth()
   await requireCompleteProfile()
   const lang: Lang = searchParams.lang === 'en' ? 'en' : 'th'
+
+  const { faculties, mostSearched, withReviews } = await getDiscoveryData()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -61,13 +113,20 @@ export default async function AllCoursesPage({ searchParams }: PageProps) {
               {lang === 'en' ? 'All Courses' : 'วิชาทั้งหมด'}
             </h1>
             <p className="text-sm text-gray-500">
-              {lang === 'en' ? 'Search to find courses' : 'ค้นหาเพื่อแสดงรายการวิชา'}
+              {lang === 'en' ? 'Search and discover courses' : 'ค้นหาและสำรวจกระบวนวิชา'}
             </p>
           </div>
         </div>
 
         <Suspense fallback={<div className="h-12 animate-pulse bg-gray-100 rounded-xl" />}>
-          <AllCoursesSearch lang={lang} initialQ={searchParams.q ?? ''} initialDept={searchParams.dept ?? ''} />
+          <AllCoursesSearch
+            lang={lang}
+            initialQ={searchParams.q ?? ''}
+            initialDept={searchParams.dept ?? ''}
+            faculties={faculties}
+            mostSearchedCourses={mostSearched}
+            coursesWithReviews={withReviews}
+          />
         </Suspense>
       </main>
 

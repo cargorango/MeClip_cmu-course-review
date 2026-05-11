@@ -36,6 +36,10 @@ model User {
   accounts      Account[]
   sessions      Session[]
   courseAudits  CourseAuditLog[]
+  viewLogs      CourseViewLog[]
+  searchLogs    CourseSearchLog[]
+  messageLikes  MessageLike[]
+  bookmarks     CourseBookmark[]
 }
 
 enum Role {
@@ -108,6 +112,9 @@ model Course {
   ratings    DifficultyRating[]
   reviewRoom ReviewRoom?
   auditLogs  CourseAuditLog[]
+  viewLogs   CourseViewLog[]
+  searchLogs CourseSearchLog[]
+  bookmarks  CourseBookmark[]
 }
 
 model CourseAuditLog {
@@ -135,6 +142,7 @@ model Message {
   roomId              String
   userId              String
   content             String
+  grade               String?
   isDeleted           Boolean      @default(false)
   wasAnonymous        Boolean?
   senderStatus        UserStatus?
@@ -145,8 +153,9 @@ model Message {
   editedAt            DateTime?
   createdAt           DateTime     @default(now())
 
-  room ReviewRoom @relation(fields: [roomId], references: [id])
-  user User       @relation(fields: [userId], references: [id])
+  room  ReviewRoom  @relation(fields: [roomId], references: [id])
+  user  User        @relation(fields: [userId], references: [id])
+  likes MessageLike[]
 
   @@index([roomId, createdAt])
   @@index([roomId, isDeleted, createdAt])
@@ -214,4 +223,57 @@ model Session {
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CourseViewLog {
+  id        String   @id @default(cuid())
+  courseId  String
+  userId    String?
+  createdAt DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([courseId])
+  @@index([createdAt])
+}
+
+model CourseSearchLog {
+  id        String   @id @default(cuid())
+  query     String
+  courseId  String?
+  userId    String?
+  createdAt DateTime @default(now())
+
+  course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([courseId])
+  @@index([createdAt])
+}
+
+model MessageLike {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+}
+
+model CourseBookmark {
+  id        String   @id @default(cuid())
+  courseId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, userId])
+  @@index([userId])
 }
