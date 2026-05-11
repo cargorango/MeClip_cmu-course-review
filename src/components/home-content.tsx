@@ -1,10 +1,10 @@
 'use client'
 
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { BookOpen } from 'lucide-react'
+import { BookOpen, Search } from 'lucide-react'
 import { type Lang, translations } from '@/lib/i18n'
-import SearchFilters, { type SearchFilterState } from '@/components/search-filters'
 import TopCourses from '@/components/top-courses'
 
 interface TopCourse {
@@ -27,46 +27,50 @@ interface HomeContentProps {
 
 export default function HomeContent({
   lang,
-  faculties,
   topCourses,
   freeElectiveCount,
   initialQuery,
 }: HomeContentProps) {
   const tr = translations[lang]
   const router = useRouter()
+  const [q, setQ] = useState(initialQuery)
 
-  // When any filter changes, redirect to /courses with all filter params in URL
-  const handleFilterChange = (filters: SearchFilterState) => {
-    const isActive = !!(filters.q || filters.dept || filters.credits || filters.grade || filters.sort)
-    if (!isActive) return
-
+  const handleSearch = () => {
     const params = new URLSearchParams()
     params.set('lang', lang)
-    if (filters.q) params.set('q', filters.q)
-    if (filters.dept) params.set('dept', filters.dept)
-    if (filters.credits) params.set('credits', filters.credits)
-    if (filters.sort) params.set('sort', filters.sort)
-    if (filters.grade) params.set('grade', filters.grade)
-
+    if (q.trim()) params.set('q', q.trim())
     router.push(`/courses?${params.toString()}`)
   }
 
   return (
     <>
-      {/* Global search with filters — redirects to /courses */}
+      {/* Simple search bar — text input only, redirects to /courses */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-        <SearchFilters
-          lang={lang}
-          faculties={faculties}
-          onFilterChange={handleFilterChange}
-          initialState={{ q: initialQuery }}
-          focusColor="blue"
-        />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input
+              type="text"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder={lang === 'en' ? 'Search courses (code or name)' : 'ค้นหากระบวนวิชา (รหัสวิชา หรือ ชื่อวิชา)'}
+              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white transition-shadow"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleSearch}
+            className="px-4 py-3 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+            aria-label="ค้นหา"
+          >
+            <Search className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Discovery section — always shown on home page */}
+      {/* Discovery section */}
       <>
-        {/* All courses link */}
         <Link
           href={`/courses?lang=${lang}`}
           className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-blue-300 transition-all group"
@@ -87,7 +91,6 @@ export default function HomeContent({
           <span className="text-blue-600 group-hover:translate-x-1 transition-transform">→</span>
         </Link>
 
-        {/* Free elective tab */}
         {freeElectiveCount > 0 && (
           <Link
             href={`/free-electives?lang=${lang}`}
@@ -110,7 +113,6 @@ export default function HomeContent({
           </Link>
         )}
 
-        {/* Top courses */}
         {topCourses.length > 0 && (
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
             <TopCourses
