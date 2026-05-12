@@ -101,6 +101,7 @@ describe('filterByFacultyAndCredits', () => {
   })
 
   // Property 2: Credits filter returns only matching courses
+  // filterByCredits supports both exact match and prefix match (e.g. "3" matches "3(3-0-6)")
   it('Property 2: filterByCredits result contains only courses with matching credits', () => {
     fc.assert(
       fc.property(
@@ -108,7 +109,7 @@ describe('filterByFacultyAndCredits', () => {
         fc.string({ minLength: 1, maxLength: 2 }),
         (courses, credits) => {
           const result = filterByCredits(courses, credits)
-          expect(result.every((c) => c.credits === credits)).toBe(true)
+          expect(result.every((c) => c.credits === credits || c.credits.startsWith(credits))).toBe(true)
         }
       ),
       { numRuns: 100 }

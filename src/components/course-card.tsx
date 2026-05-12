@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Star } from 'lucide-react'
 import type { Lang } from '@/lib/i18n'
+import { translateFacultyName } from '@/lib/faculty-translation'
 
 interface CourseCardProps {
   course: {
@@ -44,12 +45,21 @@ export default function CourseCard({
           {/* English name */}
           <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{course.name}</p>
 
+          {/* Faculty name */}
+          {course.faculty?.nameTh && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              {translateFacultyName(course.faculty.nameTh, lang)}
+            </p>
+          )}
+
           {/* Badges row */}
           <div className="flex flex-wrap items-center gap-1.5 mt-2">
-            {/* Credits badge */}
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-              {course.credits} หน่วยกิต
-            </span>
+            {/* Credits badge — only render when credits is a real value */}
+            {course.credits && course.credits !== '-' && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                {course.credits} หน่วยกิต
+              </span>
+            )}
 
             {/* Free elective tag */}
             {showFreeElectiveTag && course.isFreeElective && (

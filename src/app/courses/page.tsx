@@ -18,9 +18,14 @@ interface PageProps {
 }
 
 async function getDiscoveryData() {
-  // Fetch faculties and courses always (these tables exist)
-  const [faculties, coursesRaw] = await Promise.all([
-    prisma.faculty.findMany({ select: { id: true, nameTh: true }, orderBy: { nameTh: 'asc' }, where: { nameTh: { not: 'นำเข้าจาก CSV' } } }),
+  // Fetch departments from course.department field (source of truth for 28 faculties)
+  // and courses for discovery sections
+  const [deptRows, coursesRaw] = await Promise.all([
+    prisma.course.findMany({
+      select: { department: true },
+      where: { department: { not: '' } },
+      distinct: ['department'],
+    }),
     prisma.course.findMany({
       select: {
         id: true, code: true, name: true, nameTh: true, credits: true, isFreeElective: true,
@@ -32,6 +37,18 @@ async function getDiscoveryData() {
       },
     }),
   ])
+
+  // Build faculty list from department field — use raw values, filter placeholders only
+  const deptSet = new Set<string>()
+  for (const row of deptRows) {
+    const dept = (row.department ?? '').trim()
+    if (dept && dept !== 'นำเข้าจาก CSV' && dept !== '-') {
+      deptSet.add(dept)
+    }
+  }
+  const faculties = Array.from(deptSet)
+    .sort((a, b) => a.localeCompare(b, 'en'))
+    .map((name) => ({ id: name, nameTh: name }))
 
   // Gracefully handle new tables that may not exist yet in production
   let viewCounts: { courseId: string; _count: { courseId: number } }[] = []

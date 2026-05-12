@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Search, X } from 'lucide-react'
 import { GRADE_VALUES } from '@/lib/grade-stats'
 import type { Lang } from '@/lib/i18n'
+import { translateFacultyName } from '@/lib/faculty-translation'
 
 export interface SearchFilterState {
   q: string
@@ -39,6 +40,7 @@ interface DeptOption {
 
 export default function SearchFilters({
   lang,
+  faculties,
   onFilterChange,
   initialState,
   placeholder,
@@ -76,8 +78,20 @@ export default function SearchFilters({
     filters.sort !== '' ||
     filters.grade !== ''
 
-  // Fetch departments from API
+  // Build faculty/department options:
+  // If faculties prop is provided (from server), use it directly for full 28-faculty list.
+  // Otherwise fall back to fetching /api/departments (legacy path for other pages).
   useEffect(() => {
+    if (faculties && faculties.length > 0) {
+      const opts: DeptOption[] = [
+        { value: 'FREE_ELECTIVE', label: lang === 'en' ? 'Free Electives' : 'วิชาเลือกเสรี' },
+        ...faculties.map((f) => ({ value: f.id, label: translateFacultyName(f.nameTh, lang) })),
+      ]
+      setDeptOptions(opts)
+      return
+    }
+
+    // Fallback: fetch from /api/departments
     fetch('/api/departments')
       .then((r) => r.json())
       .then((data) => {
@@ -90,13 +104,13 @@ export default function SearchFilters({
         }
         if (Array.isArray(data.departments)) {
           for (const d of data.departments) {
-            opts.push({ value: d, label: d })
+            opts.push({ value: d, label: translateFacultyName(d, lang) })
           }
         }
         setDeptOptions(opts)
       })
       .catch(() => {})
-  }, [lang])
+  }, [lang, faculties])
 
   // Trigger search immediately when dropdown values change
   useEffect(() => {

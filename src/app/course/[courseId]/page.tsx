@@ -13,6 +13,7 @@ import FeedbackButton from '@/components/feedback-button'
 import LangToggle from '@/components/lang-toggle'
 import { GraduationCap, ArrowLeft, BookOpen } from 'lucide-react'
 import { translations, type Lang } from '@/lib/i18n'
+import { translateFacultyName } from '@/lib/faculty-translation'
 import { Suspense } from 'react'
 import UserMenu from '@/components/user-menu'
 import { isAdminRole } from '@/lib/roles'
@@ -171,7 +172,7 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
                 !course.department.toLowerCase().includes('csv') &&
                 !course.department.toLowerCase().includes('import') && (
                 <span className="text-xs bg-red-50 text-red-700 border border-red-200 px-2.5 py-1 rounded-full font-medium whitespace-nowrap">
-                  {course.department}
+                  {translateFacultyName(course.department, lang)}
                 </span>
               )}
             </div>

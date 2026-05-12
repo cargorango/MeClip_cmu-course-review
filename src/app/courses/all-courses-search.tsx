@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Loader2, BookOpen, TrendingUp, MessageSquare } from 'lucide-react'
 import { type Lang } from '@/lib/i18n'
 import SearchFilters, { type SearchFilterState } from '@/components/search-filters'
@@ -79,6 +79,7 @@ export default function AllCoursesSearch({
     if (filters.dept === 'FREE_ELECTIVE') {
       params.set('isFreeElective', 'true')
     } else if (filters.dept) {
+      // dept holds department name (from course.department field)
       params.set('dept', filters.dept)
     }
     if (filters.credits) params.set('credits', filters.credits)
@@ -146,6 +147,22 @@ export default function AllCoursesSearch({
 
   const hasMoreResults = results.length < totalCount
 
+  const sentinelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMoreResults) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !loadingMore) {
+          loadMore()
+        }
+      },
+      { threshold: 0.1 }
+    )
+    observer.observe(sentinelRef.current)
+    return () => observer.disconnect()
+  }, [hasMoreResults, loadingMore, loadMore])
+
   return (
     <div className="space-y-6">
       {/* Search filters */}
@@ -189,20 +206,14 @@ export default function AllCoursesSearch({
                 ))}
               </div>
               {hasMoreResults && (
-                <button
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="w-full py-2.5 text-sm text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors disabled:opacity-50"
-                >
-                  {loadingMore ? (
-                    <span className="flex items-center justify-center gap-2">
+                <div ref={sentinelRef} className="py-4 flex justify-center">
+                  {loadingMore && (
+                    <span className="flex items-center gap-2 text-sm text-gray-400">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       {lang === 'en' ? 'Loading...' : 'กำลังโหลด...'}
                     </span>
-                  ) : (
-                    `${lang === 'en' ? 'Load More' : 'โหลดเพิ่มเติม'} (${totalCount - results.length} ${lang === 'en' ? 'remaining' : 'รายการที่เหลือ'})`
                   )}
-                </button>
+                </div>
               )}
             </>
           )}

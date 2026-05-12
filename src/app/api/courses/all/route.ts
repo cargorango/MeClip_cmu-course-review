@@ -32,11 +32,13 @@ export async function GET(request: NextRequest) {
     if (q) {
       conditions.push({
         OR: [
-          { code: { contains: q, mode: 'insensitive' as const } },
+          // course_code: starts-with so "851" matches "851xxx" but not "012851"
+          { code: { startsWith: q, mode: 'insensitive' as const } },
+          { codeEn: { startsWith: q, mode: 'insensitive' as const } },
+          { codeTh: { startsWith: q, mode: 'insensitive' as const } },
+          // course_name: contains (unchanged)
           { name: { contains: q, mode: 'insensitive' as const } },
           { nameTh: { contains: q, mode: 'insensitive' as const } },
-          { codeEn: { contains: q, mode: 'insensitive' as const } },
-          { codeTh: { contains: q, mode: 'insensitive' as const } },
         ],
       })
     }

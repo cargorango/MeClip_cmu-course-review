@@ -5,23 +5,21 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    // Get all distinct department values from courses
+    // Get all distinct department values from courses (both regular and free elective)
     const rows = await prisma.course.findMany({
-      select: { department: true, isFreeElective: true },
+      select: { department: true },
       where: { department: { not: '' } },
       distinct: ['department'],
     })
 
     const hasFreeElective = await prisma.course.count({ where: { isFreeElective: true } })
 
-    // Strip "Faculty of " prefix, deduplicate, sort A-Z
+    // Collect all unique department names, filter out placeholder values
     const deptSet = new Set<string>()
     for (const row of rows) {
-      if (!row.isFreeElective && row.department) {
-        const cleaned = row.department.replace(/^Faculty of\s+/i, '').trim()
-        if (cleaned && cleaned !== 'นำเข้าจาก CSV') {
-          deptSet.add(cleaned)
-        }
+      const dept = (row.department ?? '').trim()
+      if (dept && dept !== 'นำเข้าจาก CSV' && dept !== '-') {
+        deptSet.add(dept)
       }
     }
 
