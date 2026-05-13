@@ -36,7 +36,7 @@ interface UserProfile {
 }
 
 const LEVEL_COLORS: Record<string, string> = {
-  'น้องใหม่': 'bg-green-100 text-green-700',
+  'เริ่มรีวิว': 'bg-green-100 text-green-700',
   'มีประสบการณ์': 'bg-blue-100 text-blue-700',
   'ตำนานมหาลัย': 'bg-purple-100 text-purple-700',
 }

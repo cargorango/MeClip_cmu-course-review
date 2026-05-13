@@ -4,10 +4,10 @@ import * as fc from 'fast-check'
 import { calculateReviewerLevel } from '../reviewer-level'
 
 describe('calculateReviewerLevel', () => {
-  test('Property 12: level is น้องใหม่ for counts 1-5', () => {
+  test('Property 12: level is เริ่มรีวิว for counts 1-5', () => {
     fc.assert(
       fc.property(fc.integer({ min: 1, max: 5 }), (count) => {
-        return calculateReviewerLevel(count) === 'น้องใหม่'
+        return calculateReviewerLevel(count) === 'เริ่มรีวิว'
       }),
       { numRuns: 100 }
     )
@@ -31,7 +31,7 @@ describe('calculateReviewerLevel', () => {
     )
   })
 
-  test('Property 12: count 0 returns น้องใหม่', () => {
-    return calculateReviewerLevel(0) === 'น้องใหม่'
+  test('Property 12: count 0 returns เริ่มรีวิว', () => {
+    return calculateReviewerLevel(0) === 'เริ่มรีวิว'
   })
 })
