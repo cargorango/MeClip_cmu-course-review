@@ -13,6 +13,10 @@ export function searchCourses<T extends CourseForSearch>(
 ): T[] {
   if (!query.trim()) return courses
   const lowerQuery = query.toLowerCase()
+  const isNumeric = /^\d+$/.test(query)
+  if (isNumeric) {
+    return courses.filter(course => course.code.toLowerCase().startsWith(lowerQuery))
+  }
   return courses.filter(
     course =>
       course.code.toLowerCase().includes(lowerQuery) ||

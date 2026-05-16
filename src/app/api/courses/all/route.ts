@@ -30,15 +30,26 @@ export async function GET(request: NextRequest) {
 
     const conditions: object[] = []
     if (q) {
-      conditions.push({
-        OR: [
-          { code: { contains: q, mode: 'insensitive' as const } },
-          { name: { contains: q, mode: 'insensitive' as const } },
-          { nameTh: { contains: q, mode: 'insensitive' as const } },
-          { codeEn: { contains: q, mode: 'insensitive' as const } },
-          { codeTh: { contains: q, mode: 'insensitive' as const } },
-        ],
-      })
+      const isNumeric = /^\d+$/.test(q)
+      if (isNumeric) {
+        conditions.push({
+          OR: [
+            { code: { startsWith: q, mode: 'insensitive' as const } },
+            { codeEn: { startsWith: q, mode: 'insensitive' as const } },
+            { codeTh: { startsWith: q, mode: 'insensitive' as const } },
+          ],
+        })
+      } else {
+        conditions.push({
+          OR: [
+            { code: { contains: q, mode: 'insensitive' as const } },
+            { name: { contains: q, mode: 'insensitive' as const } },
+            { nameTh: { contains: q, mode: 'insensitive' as const } },
+            { codeEn: { contains: q, mode: 'insensitive' as const } },
+            { codeTh: { contains: q, mode: 'insensitive' as const } },
+          ],
+        })
+      }
     }
     if (dept) {
       conditions.push({ department: { contains: dept, mode: 'insensitive' as const } })
