@@ -76,7 +76,11 @@ export default function AllCoursesSearch({
   const buildParams = (filters: SearchFilterState, page: number) => {
     const params = new URLSearchParams()
     if (filters.q) params.set('q', filters.q)
-    if (filters.dept === 'FREE_ELECTIVE') {
+    if (filters.facultyId === 'FREE_ELECTIVE') {
+      params.set('isFreeElective', 'true')
+    } else if (filters.facultyId) {
+      params.set('facultyId', filters.facultyId)
+    } else if (filters.dept === 'FREE_ELECTIVE') {
       params.set('isFreeElective', 'true')
     } else if (filters.dept) {
       params.set('dept', filters.dept)
@@ -90,7 +94,7 @@ export default function AllCoursesSearch({
 
   const fetchCourses = useCallback(async (filters: SearchFilterState) => {
     // Active = any filter has a value (q is NOT required)
-    const isActive = !!(filters.q || filters.dept || filters.credits || filters.grade || filters.sort)
+    const isActive = !!(filters.q || filters.facultyId || filters.dept || filters.credits || filters.grade || filters.sort)
     setHasActiveFilter(isActive)
 
     if (!isActive) {

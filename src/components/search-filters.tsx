@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Search, X } from 'lucide-react'
+import { Search, X, ChevronDown } from 'lucide-react'
 import { GRADE_VALUES } from '@/lib/grade-stats'
 import { toThaiName } from '@/lib/faculty-translation'
 import type { Lang } from '@/lib/i18n'
@@ -9,7 +9,7 @@ import type { Lang } from '@/lib/i18n'
 export interface SearchFilterState {
   q: string
   dept: string
-  facultyId: string   // kept for backward compat
+  facultyId: string
   credits: string
   sort: string
   grade: string
@@ -33,13 +33,9 @@ const DEFAULT_STATE: SearchFilterState = {
   grade: '',
 }
 
-interface DeptOption {
-  value: string
-  label: string
-}
-
 export default function SearchFilters({
   lang,
+  faculties = [],
   onFilterChange,
   initialState,
   placeholder,
@@ -49,15 +45,14 @@ export default function SearchFilters({
     ...DEFAULT_STATE,
     ...initialState,
   })
-  const [deptOptions, setDeptOptions] = useState<DeptOption[]>([])
+  const [facultyOpen, setFacultyOpen] = useState(false)
+  const facultyRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isFirstRender = useRef(true)
 
-  // Always keep a ref to the latest filters — prevents stale closure in callbacks
   const filtersRef = useRef(filters)
   filtersRef.current = filters
 
-  // Stable callback ref — onFilterChange may change between renders
   const onFilterChangeRef = useRef(onFilterChange)
   onFilterChangeRef.current = onFilterChange
 
@@ -72,44 +67,31 @@ export default function SearchFilters({
 
   const hasActiveFilter =
     filters.q !== '' ||
-    filters.dept !== '' ||
+    filters.facultyId !== '' ||
     filters.credits !== '' ||
     filters.sort !== '' ||
     filters.grade !== ''
 
-  // Fetch departments from API
+  // Close faculty dropdown when clicking outside
   useEffect(() => {
-    fetch('/api/departments')
-      .then((r) => r.json())
-      .then((data) => {
-        const opts: DeptOption[] = []
-        if (data.hasFreeElective) {
-          opts.push({
-            value: 'FREE_ELECTIVE',
-            label: lang === 'en' ? 'Free Electives' : 'วิชาเลือกเสรี',
-          })
-        }
-        if (Array.isArray(data.departments)) {
-          for (const d of data.departments) {
-            opts.push({ value: d, label: lang === 'th' ? toThaiName(d) : d })
-          }
-        }
-        setDeptOptions(opts)
-      })
-      .catch(() => {})
-  }, [lang])
+    const handler = (e: MouseEvent) => {
+      if (facultyRef.current && !facultyRef.current.contains(e.target as Node)) {
+        setFacultyOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
-  // Trigger search immediately when dropdown values change
+  // Trigger search when dropdown values change
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false
       return
     }
-    // Use filtersRef.current to always get the latest state
     onFilterChangeRef.current(filtersRef.current)
-  }, [filters.dept, filters.sort, filters.grade])
+  }, [filters.facultyId, filters.sort, filters.grade])
 
-  // Submit search with latest filters (no stale closure)
   const submitSearch = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     onFilterChangeRef.current(filtersRef.current)
@@ -118,10 +100,8 @@ export default function SearchFilters({
   const handleQChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     setFilters((prev) => ({ ...prev, q: val }))
-
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      // Use functional update pattern to get latest state
       onFilterChangeRef.current({ ...filtersRef.current, q: val })
     }, 300)
   }
@@ -129,7 +109,6 @@ export default function SearchFilters({
   const handleCreditsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     setFilters((prev) => ({ ...prev, credits: val }))
-
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       onFilterChangeRef.current({ ...filtersRef.current, credits: val })
@@ -137,17 +116,30 @@ export default function SearchFilters({
   }
 
   const handleSelectChange =
-    (field: keyof Omit<SearchFilterState, 'q' | 'credits'>) =>
+    (field: keyof Omit<SearchFilterState, 'q' | 'credits' | 'facultyId'>) =>
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       const val = e.target.value
       setFilters((prev) => ({ ...prev, [field]: val }))
-      // Note: the useEffect above will fire after state update and call onFilterChange
     }
+
+  const handleFacultySelect = (value: string) => {
+    setFilters((prev) => ({ ...prev, facultyId: value }))
+    setFacultyOpen(false)
+  }
 
   const handleReset = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     setFilters(DEFAULT_STATE)
     onFilterChangeRef.current(DEFAULT_STATE)
+  }
+
+  // Build faculty label for selected value
+  const getFacultyLabel = (id: string) => {
+    if (!id) return lang === 'en' ? 'All Faculties' : 'ทุกคณะ'
+    if (id === 'FREE_ELECTIVE') return lang === 'en' ? 'Free Electives' : 'วิชาเลือกเสรี'
+    const f = faculties.find((x) => x.id === id)
+    if (!f) return lang === 'en' ? 'All Faculties' : 'ทุกคณะ'
+    return lang === 'th' ? toThaiName(f.nameTh) : f.nameTh
   }
 
   return (
@@ -195,19 +187,51 @@ export default function SearchFilters({
 
       {/* Secondary filters row */}
       <div className="flex flex-wrap gap-2">
-        {/* Faculty/Department select */}
-        <select
-          value={filters.dept}
-          onChange={handleSelectChange('dept')}
-          className={`flex-1 min-w-[140px] border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 ${focusRing}`}
-        >
-          <option value="">{lang === 'en' ? 'All Faculties' : 'ทุกคณะ'}</option>
-          {deptOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+        {/* Faculty custom dropdown — always opens downward */}
+        <div ref={facultyRef} className="relative flex-1 min-w-[140px]">
+          <button
+            type="button"
+            onClick={() => setFacultyOpen((o) => !o)}
+            className={`w-full flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 ${focusRing} ${
+              filters.facultyId ? 'text-gray-900' : 'text-gray-500'
+            }`}
+          >
+            <span className="truncate">{getFacultyLabel(filters.facultyId)}</span>
+            <ChevronDown className={`w-4 h-4 text-gray-400 shrink-0 ml-1 transition-transform ${facultyOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {facultyOpen && (
+            <div className="absolute top-full left-0 mt-1 w-full min-w-[200px] bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-64 overflow-y-auto">
+              {/* All faculties option */}
+              <button
+                type="button"
+                onClick={() => handleFacultySelect('')}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${!filters.facultyId ? 'font-medium text-blue-600 bg-blue-50' : 'text-gray-700'}`}
+              >
+                {lang === 'en' ? 'All Faculties' : 'ทุกคณะ'}
+              </button>
+              {/* Free elective option */}
+              <button
+                type="button"
+                onClick={() => handleFacultySelect('FREE_ELECTIVE')}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${filters.facultyId === 'FREE_ELECTIVE' ? 'font-medium text-blue-600 bg-blue-50' : 'text-gray-700'}`}
+              >
+                {lang === 'en' ? 'Free Electives' : 'วิชาเลือกเสรี'}
+              </button>
+              {/* Faculty options */}
+              {faculties.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => handleFacultySelect(f.id)}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${filters.facultyId === f.id ? 'font-medium text-blue-600 bg-blue-50' : 'text-gray-700'}`}
+                >
+                  {lang === 'th' ? toThaiName(f.nameTh) : f.nameTh}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Credits — text input */}
         <input
