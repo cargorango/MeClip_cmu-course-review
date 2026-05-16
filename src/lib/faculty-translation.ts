@@ -1,4 +1,4 @@
-// Maps short English faculty names (as stored in DB) to Thai display names
+// Maps short English faculty names (as stored in DB, after stripping "Faculty of ") to Thai display names
 const FACULTY_TH: Record<string, string> = {
   'Agriculture': 'คณะเกษตรศาสตร์',
   'Agro-Industry': 'คณะอุตสาหกรรมเกษตร',
@@ -14,12 +14,11 @@ const FACULTY_TH: Record<string, string> = {
   'Engineering': 'คณะวิศวกรรมศาสตร์',
   'Fine Arts': 'คณะวิจิตรศิลป์',
   'Humanities': 'คณะมนุษยศาสตร์',
-  'International College': 'วิทยาลัยนานาชาติ',
   'International College of Digital Innovation': 'วิทยาลัยนานาชาตินวัตกรรมดิจิทัล',
   'Law': 'คณะนิติศาสตร์',
   'Mass Communication': 'คณะการสื่อสารมวลชน',
   'Medicine': 'คณะแพทยศาสตร์',
-  'Multidisciplinary and Interdisciplinary School': 'บัณฑิตวิทยาลัยสหสาขาวิชา',
+  'Multidisciplinary and Interdisciplinary School': 'สหสาขาวิชา',
   'Nursing': 'คณะพยาบาลศาสตร์',
   'Pharmacy': 'คณะเภสัชศาสตร์',
   'Political Science and Public Administration': 'คณะรัฐศาสตร์และรัฐประศาสนศาสตร์',
