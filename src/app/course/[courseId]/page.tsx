@@ -24,50 +24,56 @@ interface CoursePageProps {
 }
 
 export default async function CoursePage({ params, searchParams }: CoursePageProps) {
-  const session = await auth()
-  await requireCompleteProfile()
   const { courseId } = params
   const lang: Lang = searchParams.lang === 'en' ? 'en' : 'th'
   const tr = translations[lang]
 
-  const course = await prisma.course.findUnique({
-    where: { id: courseId },
-    select: {
-      id: true,
-      code: true,
-      name: true,
-      nameTh: true,
-      codeEn: true,
-      codeTh: true,
-      credits: true,
-      description: true,
-      descriptionEn: true,
-      prerequisite: true,
-      department: true,
-      updatedDate: true,
-      isFreeElective: true,
-      facultyId: true,
-      ratings: { select: { rating: true, userId: true } },
-      faculty: { select: { id: true, name: true, nameTh: true } },
-      curriculum: { select: { id: true, programType: true, curriculumYear: true } },
-    },
-  })
+  // Run auth + all DB queries in parallel to avoid sequential round trips
+  const [session, course, reviewRoomForGrades] = await Promise.all([
+    auth(),
+    prisma.course.findUnique({
+      where: { id: courseId },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        nameTh: true,
+        codeEn: true,
+        codeTh: true,
+        credits: true,
+        description: true,
+        descriptionEn: true,
+        prerequisite: true,
+        department: true,
+        updatedDate: true,
+        isFreeElective: true,
+        facultyId: true,
+        ratings: { select: { rating: true, userId: true } },
+        faculty: { select: { id: true, name: true, nameTh: true } },
+        curriculum: { select: { id: true, programType: true, curriculumYear: true } },
+      },
+    }),
+    // Limit to last 200 messages for grade stats — avoids loading thousands of records
+    prisma.reviewRoom.findUnique({
+      where: { courseId },
+      select: {
+        messages: {
+          where: { isDeleted: false },
+          select: { grade: true },
+          orderBy: { createdAt: 'desc' },
+          take: 200,
+        },
+      },
+    }).catch(() => null),
+  ])
+
+  await requireCompleteProfile()
 
   if (!course) {
     notFound()
   }
 
-  // Fetch messages with grade separately — grade column may not exist yet in production
-  let messageGrades: (string | null)[] = []
-  try {
-    const reviewRoom = await prisma.reviewRoom.findUnique({
-      where: { courseId },
-      select: { messages: { where: { isDeleted: false }, select: { grade: true } } },
-    })
-    messageGrades = reviewRoom?.messages.map(m => m.grade) ?? []
-  } catch {
-    // grade column doesn't exist yet — skip grade stats
-  }
+  const messageGrades: (string | null)[] = reviewRoomForGrades?.messages.map(m => m.grade) ?? []
 
   const ratings = course.ratings.map(r => r.rating)
   const averageRating = calculateAverageRating(ratings)
@@ -81,20 +87,14 @@ export default async function CoursePage({ params, searchParams }: CoursePagePro
     ? (course.ratings.find(r => r.userId === session.user.id)?.rating ?? null)
     : null
 
-  // Compute grade stats from messages (grade field may not exist yet — graceful fallback)
   const gradeStats = computeGradeStats(messageGrades)
 
-  // Fetch bookmark status for current user (table may not exist yet)
-  let isBookmarked = false
-  if (session?.user?.id) {
-    try {
-      isBookmarked = !!(await prisma.courseBookmark.findUnique({
+  // Fetch bookmark only after we have session (can't run earlier without userId)
+  const isBookmarked = session?.user?.id
+    ? await prisma.courseBookmark.findUnique({
         where: { courseId_userId: { courseId, userId: session.user.id } },
-      }))
-    } catch {
-      // CourseBookmark table doesn't exist yet in production
-    }
-  }
+      }).then(b => !!b).catch(() => false)
+    : false
 
   // Badges: only show codeEn and credits — faculty/curriculum data is unreliable (CSV import artifacts)
   // Do NOT show faculty nameTh or curriculum label as they contain placeholder data

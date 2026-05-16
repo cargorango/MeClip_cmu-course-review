@@ -4,7 +4,7 @@ export interface CourseForSort {
   id: string
   code: string
   reviewCount: number
-  gradeProportions: Record<GradeValue, number> // 0.0–1.0
+  gradeProportions?: Record<GradeValue, number> // 0.0–1.0, optional when not loaded
 }
 
 /**
@@ -19,7 +19,7 @@ export function sortByReviews<T extends CourseForSort>(courses: T[]): T[] {
  */
 export function sortByGrade<T extends CourseForSort>(courses: T[], grade: GradeValue): T[] {
   return [...courses].sort(
-    (a, b) => (b.gradeProportions[grade] ?? 0) - (a.gradeProportions[grade] ?? 0)
+    (a, b) => (b.gradeProportions?.[grade] ?? 0) - (a.gradeProportions?.[grade] ?? 0)
   )
 }
 

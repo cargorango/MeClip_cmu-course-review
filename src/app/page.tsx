@@ -1,6 +1,5 @@
 import { Suspense } from 'react'
 import { prisma } from '@/lib/prisma'
-import { getTopCoursesByReviews } from '@/lib/course-ranking'
 import { calculateAverageRating } from '@/lib/rating'
 import HomeContent from '@/components/home-content'
 import FeedbackButton from '@/components/feedback-button'
@@ -18,8 +17,11 @@ interface HomePageProps {
 }
 
 async function getHomeData() {
-  const [courses, freeElectiveCount, faculties] = await Promise.all([
+  const [topCoursesRaw, freeElectiveCount, faculties] = await Promise.all([
+    // Fetch only top 3 most-rated courses directly from DB — avoids loading all 10k+ courses
     prisma.course.findMany({
+      orderBy: { ratings: { _count: 'desc' } },
+      take: 3,
       select: {
         id: true,
         code: true,
@@ -31,19 +33,7 @@ async function getHomeData() {
     prisma.course.count({ where: { isFreeElective: true } }),
     prisma.faculty.findMany({ select: { id: true, nameTh: true }, orderBy: { nameTh: 'asc' } }),
   ])
-  return { courses, freeElectiveCount, faculties }
-}
-
-export default async function HomePage({ searchParams }: HomePageProps) {
-  const session = await auth()
-  await requireCompleteProfile()
-
-  const { courses, freeElectiveCount, faculties } = await getHomeData()
-  const lang: Lang = searchParams.lang === 'en' ? 'en' : 'th'
-  const tr = translations[lang]
-
-  // Top 3 most-reviewed courses
-  const coursesWithCount = courses.map(c => ({
+  const topCourses = topCoursesRaw.map(c => ({
     id: c.id,
     code: c.code,
     name: c.name,
@@ -52,8 +42,21 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     averageRating: calculateAverageRating(c.ratings.map(r => r.rating)),
     totalRatings: c.ratings.length,
   }))
-  const topCourses = getTopCoursesByReviews(coursesWithCount, 3)
+  return { topCourses, freeElectiveCount, faculties }
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const lang: Lang = searchParams.lang === 'en' ? 'en' : 'th'
+  const tr = translations[lang]
   const initialQuery = searchParams.q ?? ''
+
+  // Run auth + data fetch in parallel
+  const [session, { topCourses, freeElectiveCount, faculties }] = await Promise.all([
+    auth(),
+    getHomeData(),
+  ])
+
+  await requireCompleteProfile()
 
   return (
     <div className="min-h-screen bg-gray-50">

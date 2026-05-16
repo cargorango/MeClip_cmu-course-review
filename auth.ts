@@ -99,30 +99,36 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.isProfileComplete = dbUser.isProfileComplete
         }
       } else if (token.id) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.id as string },
-          select: {
-            role: true,
-            displayName: true,
-            isAnonymous: true,
-            status: true,
-            yearOfStudy: true,
-            degreeLevel: true,
-            faculty: true,
-            alumniYear: true,
-            isProfileComplete: true,
-          },
-        })
-        if (dbUser) {
-          token.role = dbUser.role
-          token.displayName = dbUser.displayName
-          token.isAnonymous = dbUser.isAnonymous
-          token.status = dbUser.status
-          token.yearOfStudy = dbUser.yearOfStudy
-          token.degreeLevel = dbUser.degreeLevel
-          token.faculty = dbUser.faculty
-          token.alumniYear = dbUser.alumniYear
-          token.isProfileComplete = dbUser.isProfileComplete
+        // Only refresh from DB every 5 minutes to avoid a DB hit on every page load
+        const TOKEN_REFRESH_INTERVAL = 5 * 60 * 1000
+        const lastRefresh = (token.refreshedAt as number) ?? 0
+        if (Date.now() - lastRefresh > TOKEN_REFRESH_INTERVAL) {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: {
+              role: true,
+              displayName: true,
+              isAnonymous: true,
+              status: true,
+              yearOfStudy: true,
+              degreeLevel: true,
+              faculty: true,
+              alumniYear: true,
+              isProfileComplete: true,
+            },
+          })
+          if (dbUser) {
+            token.refreshedAt = Date.now()
+            token.role = dbUser.role
+            token.displayName = dbUser.displayName
+            token.isAnonymous = dbUser.isAnonymous
+            token.status = dbUser.status
+            token.yearOfStudy = dbUser.yearOfStudy
+            token.degreeLevel = dbUser.degreeLevel
+            token.faculty = dbUser.faculty
+            token.alumniYear = dbUser.alumniYear
+            token.isProfileComplete = dbUser.isProfileComplete
+          }
         }
       }
       return token
