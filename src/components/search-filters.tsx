@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Search, X } from 'lucide-react'
 import { GRADE_VALUES } from '@/lib/grade-stats'
+import { toThaiName } from '@/lib/faculty-translation'
 import type { Lang } from '@/lib/i18n'
 
 export interface SearchFilterState {
@@ -90,7 +91,7 @@ export default function SearchFilters({
         }
         if (Array.isArray(data.departments)) {
           for (const d of data.departments) {
-            opts.push({ value: d, label: d })
+            opts.push({ value: d, label: lang === 'th' ? toThaiName(d) : d })
           }
         }
         setDeptOptions(opts)

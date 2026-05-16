@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Star } from 'lucide-react'
+import { toThaiName } from '@/lib/faculty-translation'
 import type { Lang } from '@/lib/i18n'
 
 interface CourseCardProps {
@@ -54,7 +55,7 @@ export default function CourseCard({
             {/* Faculty badge */}
             {course.faculty?.nameTh && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                {course.faculty.nameTh}
+                {lang === 'th' ? toThaiName(course.faculty.nameTh) : course.faculty.nameTh}
               </span>
             )}
 
