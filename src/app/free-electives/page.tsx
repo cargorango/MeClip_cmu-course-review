@@ -22,7 +22,7 @@ export default async function FreeElectivesPage({ searchParams }: PageProps) {
   const lang: Lang = searchParams.lang === 'en' ? 'en' : 'th'
 
   const [faculties, coursesRaw, totalCount] = await Promise.all([
-    prisma.faculty.findMany({ select: { id: true, nameTh: true }, orderBy: { nameTh: 'asc' } }),
+    prisma.faculty.findMany({ select: { id: true, name: true, nameTh: true }, orderBy: { nameTh: 'asc' } }),
     prisma.course.findMany({
       where: { isFreeElective: true },
       select: {

@@ -20,7 +20,7 @@ interface CourseResult {
 
 interface Props {
   lang: Lang
-  faculties: { id: string; nameTh: string }[]
+  faculties: { id: string; name: string; nameTh: string }[]
   topFreeElectives: CourseResult[]
 }
 
