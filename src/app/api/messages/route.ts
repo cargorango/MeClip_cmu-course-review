@@ -18,24 +18,26 @@ function getSenderLabel(msg: {
   senderFaculty: string | null
   senderAlumniYear: number | null
   user: { isAnonymous: boolean; displayName: string; ratings: { courseId: string }[] }
-}): { displayName: string; reviewerLevel: string | null } {
+}): { displayName: string; reviewerLevel: string | null; statusLabel: string | null } {
   const isAnon = msg.wasAnonymous ?? msg.user.isAnonymous
 
+  const statusLabel = msg.senderStatus
+    ? formatStatus({
+        status: msg.senderStatus,
+        degreeLevel: msg.senderDegreeLevel,
+        yearOfStudy: msg.senderYearOfStudy,
+        faculty: msg.senderFaculty,
+        alumniYear: msg.senderAlumniYear,
+      })
+    : null
+
   if (isAnon) {
-    // Use Status Formatter with snapshot fields for anonymous display
-    const statusLabel = formatStatus({
-      status: msg.senderStatus,
-      degreeLevel: msg.senderDegreeLevel,
-      yearOfStudy: msg.senderYearOfStudy,
-      faculty: msg.senderFaculty,
-      alumniYear: msg.senderAlumniYear,
-    })
-    return { displayName: statusLabel, reviewerLevel: null }
+    return { displayName: statusLabel ?? 'ไม่ระบุตัวตน', reviewerLevel: null, statusLabel: null }
   }
 
   const uniqueCoursesReviewed = new Set(msg.user.ratings.map(r => r.courseId)).size
   const reviewerLevel = calculateReviewerLevel(uniqueCoursesReviewed)
-  return { displayName: msg.user.displayName, reviewerLevel }
+  return { displayName: msg.user.displayName, reviewerLevel, statusLabel }
 }
 
 export async function GET(request: NextRequest) {
@@ -98,7 +100,7 @@ export async function GET(request: NextRequest) {
     }
 
     const formattedMessages = pageMessages.map(msg => {
-      const { displayName, reviewerLevel } = getSenderLabel({
+      const { displayName, reviewerLevel, statusLabel } = getSenderLabel({
         wasAnonymous: msg.wasAnonymous,
         senderStatus: msg.senderStatus,
         senderYearOfStudy: msg.senderYearOfStudy,
@@ -120,6 +122,7 @@ export async function GET(request: NextRequest) {
         sender: {
           displayName,
           reviewerLevel,
+          statusLabel,
         },
       }
     })

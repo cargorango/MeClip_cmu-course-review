@@ -12,6 +12,11 @@ interface AdminUser {
   totalRatings: number
   createdAt: string
   isAnonymous: boolean
+  status?: string | null
+  degreeLevel?: string | null
+  yearOfStudy?: number | null
+  faculty?: string | null
+  alumniYear?: number | null
 }
 
 interface UsersResponse {
@@ -157,6 +162,29 @@ export default function AdminUsersClient({ isPlatformManager, isOperationsManage
   const isAdminRole = (role: string) =>
     ['ADMIN', 'SUPER_ADMIN', 'PLATFORM_MANAGER', 'SYSTEM_MANAGER', 'OPERATIONS_MANAGER'].includes(role)
 
+  const DEGREE_LABELS: Record<string, string> = {
+    BACHELOR: 'ป.ตรี',
+    MASTER: 'ป.โท',
+    DOCTORAL: 'ป.เอก',
+  }
+
+  function getProfileStatusLabel(user: AdminUser): string {
+    if (!user.status) return 'ไม่ระบุสถานะ'
+    if (user.status === 'STUDENT') {
+      const parts: string[] = []
+      if (user.degreeLevel) parts.push(DEGREE_LABELS[user.degreeLevel] ?? user.degreeLevel)
+      if (user.yearOfStudy) parts.push(`ปี ${user.yearOfStudy}`)
+      return parts.length ? `นักศึกษา ${parts.join(' ')}` : 'นักศึกษา'
+    }
+    if (user.status === 'TEACHER') {
+      return user.faculty ? `อาจารย์ - ${user.faculty}` : 'อาจารย์'
+    }
+    if (user.status === 'ALUMNI') {
+      return user.alumniYear ? `ศิษย์เก่า รุ่น ${user.alumniYear}` : 'ศิษย์เก่า'
+    }
+    return user.status
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -263,9 +291,18 @@ export default function AdminUsersClient({ isPlatformManager, isOperationsManage
                       <p className="text-xs text-gray-400 mt-0.5">{user.totalRatings} รีวิว</p>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[user.role] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {user.role}
-                      </span>
+                      {isAdminRole(user.role) ? (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[user.role] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {user.role === 'PLATFORM_MANAGER' ? 'Platform Manager' :
+                           user.role === 'SYSTEM_MANAGER' ? 'System Manager' :
+                           user.role === 'OPERATIONS_MANAGER' ? 'Operations Manager' :
+                           user.role}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-700">
+                          {getProfileStatusLabel(user)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">
                       {new Date(user.createdAt).toLocaleDateString('th-TH')}

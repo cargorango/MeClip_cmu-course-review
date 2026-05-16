@@ -27,7 +27,7 @@ async function getStats() {
     prisma.course.count(),
     prisma.message.count({ where: { isDeleted: false } }),
     prisma.difficultyRating.count(),
-    prisma.user.count({ where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } } }),
+    prisma.user.count({ where: { role: { in: ['ADMIN', 'SUPER_ADMIN', 'PLATFORM_MANAGER', 'SYSTEM_MANAGER', 'OPERATIONS_MANAGER'] } } }),
     prisma.user.groupBy({ by: ['role'], _count: { role: true } }),
   ])
 
@@ -114,9 +114,12 @@ export default async function AdminStatsPage() {
   ]
 
   const roleMap: Record<string, string> = {
-    STUDENT: 'นักศึกษา',
+    STUDENT: 'นักศึกษา / ทั่วไป',
     ADMIN: 'Admin',
     SUPER_ADMIN: 'Super Admin',
+    PLATFORM_MANAGER: 'Platform Manager',
+    SYSTEM_MANAGER: 'System Manager',
+    OPERATIONS_MANAGER: 'Operations Manager',
   }
 
   return (

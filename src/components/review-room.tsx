@@ -19,6 +19,7 @@ interface Message {
   sender: {
     displayName: string
     reviewerLevel: string | null
+    statusLabel: string | null
   }
 }
 
@@ -229,7 +230,7 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
       isOwn: true,
       likeCount: 0,
       likedByUser: false,
-      sender: { displayName: anonymousPlaceholder, reviewerLevel: null },
+      sender: { displayName: anonymousPlaceholder, reviewerLevel: null, statusLabel: null },
     }
     setMessages(prev => [...prev, tempMsg])
     setInput('')
@@ -363,6 +364,9 @@ export default function ReviewRoom({ courseId, isLoggedIn }: ReviewRoomProps) {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium text-gray-800">
                   {msg.sender.displayName}
+                  {msg.sender.statusLabel && (
+                    <span className="text-xs font-normal text-gray-500 ml-1">- {msg.sender.statusLabel}</span>
+                  )}
                 </span>
                 {msg.sender.reviewerLevel && (
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${LEVEL_COLORS[msg.sender.reviewerLevel] ?? 'bg-gray-100 text-gray-600'}`}>

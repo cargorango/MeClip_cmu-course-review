@@ -37,9 +37,9 @@ export default function ProfileForm({
   const router = useRouter()
   const [name, setName] = useState(displayName)
   const [anonymous, setAnonymous] = useState(isAnonymous)
-  const [selectedStatus, setSelectedStatus] = useState(status ?? '')
-  const [selectedYear, setSelectedYear] = useState(yearOfStudy ? String(yearOfStudy) : '')
-  const [selectedDegreeLevel, setSelectedDegreeLevel] = useState(degreeLevel ?? '')
+  const [selectedStatus, setSelectedStatus] = useState(status ?? 'STUDENT')
+  const [selectedYear, setSelectedYear] = useState(yearOfStudy ? String(yearOfStudy) : '1')
+  const [selectedDegreeLevel, setSelectedDegreeLevel] = useState(degreeLevel ?? 'BACHELOR')
   const [selectedFaculty, setSelectedFaculty] = useState(faculty ?? '')
   const [selectedAlumniYear, setSelectedAlumniYear] = useState(alumniYear ? String(alumniYear) : '')
   const [loading, setLoading] = useState(false)
@@ -48,12 +48,18 @@ export default function ProfileForm({
 
   const handleStatusChange = (newStatus: string) => {
     setSelectedStatus(newStatus)
-    // Clear all status-specific fields when status changes
-    setSelectedYear('')
-    setSelectedDegreeLevel('')
+    // Reset to defaults for the new status
+    setSelectedYear('1')
+    setSelectedDegreeLevel('BACHELOR')
     setSelectedFaculty('')
     setSelectedAlumniYear('')
   }
+
+  const isSaveDisabled = loading ||
+    !selectedStatus ||
+    (selectedStatus === 'STUDENT' && (!selectedDegreeLevel || !selectedYear)) ||
+    (selectedStatus === 'TEACHER' && !selectedFaculty.trim()) ||
+    (selectedStatus === 'ALUMNI' && !selectedAlumniYear)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -113,7 +119,6 @@ export default function ProfileForm({
           onChange={e => handleStatusChange(e.target.value)}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
         >
-          <option value="">-- ไม่ระบุ --</option>
           {STATUS_OPTIONS.map(opt => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
@@ -129,7 +134,6 @@ export default function ProfileForm({
             onChange={e => setSelectedDegreeLevel(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
-            <option value="">-- ไม่ระบุ --</option>
             {DEGREE_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
@@ -146,7 +150,6 @@ export default function ProfileForm({
             onChange={e => setSelectedYear(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
-            <option value="">-- ไม่ระบุ --</option>
             {[1, 2, 3, 4, 5, 6].map(y => (
               <option key={y} value={String(y)}>ปี {y}</option>
             ))}
@@ -213,7 +216,7 @@ export default function ProfileForm({
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={isSaveDisabled}
         className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
       >
         {loading ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}

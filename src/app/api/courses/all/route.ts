@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { calculateAverageRating } from '@/lib/rating'
-import { filterByFacultyAndCredits } from '@/lib/course-filter-v2'
 import { sortByReviews, sortByGrade, sortByCode } from '@/lib/course-sort'
 import { GRADE_VALUES, type GradeValue } from '@/lib/grade-stats'
 
@@ -61,6 +60,10 @@ export async function GET(request: NextRequest) {
     if (credits) {
       conditions.push({ credits: { startsWith: credits } })
     }
+    // FacultyId filter at DB level for accurate total count
+    if (facultyId) {
+      conditions.push({ facultyId })
+    }
 
     const where = conditions.length > 0 ? { AND: conditions } : {}
 
@@ -107,19 +110,16 @@ export async function GET(request: NextRequest) {
       reviewCount: c.reviewRoom?._count.messages ?? 0,
     }))
 
-    // Apply faculty and credits filters (pure logic — credits already filtered at DB level)
-    const filtered = filterByFacultyAndCredits(enriched, facultyId, '')
-
-    // Apply sort
-    let sorted: typeof filtered
+    // Apply sort (facultyId and credits are already filtered at DB level)
+    let sorted: typeof enriched
     if (sort === 'reviews') {
-      sorted = sortByReviews(filtered)
+      sorted = sortByReviews(enriched)
     } else if (grade && (GRADE_VALUES as readonly string[]).includes(grade)) {
-      sorted = sortByGrade(filtered, grade as GradeValue)
+      sorted = sortByGrade(enriched, grade as GradeValue)
     } else if (sort && (GRADE_VALUES as readonly string[]).includes(sort)) {
-      sorted = sortByGrade(filtered, sort as GradeValue)
+      sorted = sortByGrade(enriched, sort as GradeValue)
     } else {
-      sorted = sortByCode(filtered)
+      sorted = sortByCode(enriched)
     }
 
     return NextResponse.json({
