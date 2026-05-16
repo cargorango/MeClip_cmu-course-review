@@ -17,7 +17,7 @@ export interface SearchFilterState {
 
 interface SearchFiltersProps {
   lang: Lang
-  faculties?: { id: string; nameTh: string }[]
+  faculties?: { id: string; name: string; nameTh: string }[]
   onFilterChange: (filters: SearchFilterState) => void
   initialState?: Partial<SearchFilterState>
   placeholder?: string
@@ -41,6 +41,9 @@ export default function SearchFilters({
   placeholder,
   focusColor = 'blue',
 }: SearchFiltersProps) {
+  // Derive short English name for English mode (strip "Faculty of " prefix)
+  const getFacultyEnName = (f: { name: string }) =>
+    f.name.replace(/^Faculty of\s+/i, '').trim()
   const [filters, setFilters] = useState<SearchFilterState>({
     ...DEFAULT_STATE,
     ...initialState,
@@ -139,7 +142,7 @@ export default function SearchFilters({
     if (id === 'FREE_ELECTIVE') return lang === 'en' ? 'Free Electives' : 'วิชาเลือกเสรี'
     const f = faculties.find((x) => x.id === id)
     if (!f) return lang === 'en' ? 'All Faculties' : 'ทุกคณะ'
-    return lang === 'th' ? toThaiName(f.nameTh) : f.nameTh
+    return lang === 'th' ? f.nameTh : getFacultyEnName(f)
   }
 
   return (
@@ -226,7 +229,7 @@ export default function SearchFilters({
                   onClick={() => handleFacultySelect(f.id)}
                   className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${filters.facultyId === f.id ? 'font-medium text-blue-600 bg-blue-50' : 'text-gray-700'}`}
                 >
-                  {lang === 'th' ? toThaiName(f.nameTh) : f.nameTh}
+                  {lang === 'th' ? f.nameTh : getFacultyEnName(f)}
                 </button>
               ))}
             </div>

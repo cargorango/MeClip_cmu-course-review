@@ -25,7 +25,7 @@ interface Props {
   initialCredits?: string
   initialSort?: string
   initialGrade?: string
-  faculties: { id: string; nameTh: string }[]
+  faculties: { id: string; name: string; nameTh: string }[]
   mostSearchedCourses: CourseResult[]
   coursesWithReviews: CourseResult[]
 }
