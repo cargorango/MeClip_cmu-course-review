@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { Users, UserCheck, BookOpen, MessageSquare, Star, TrendingUp } from 'lucide-react'
+import { Users, UserCheck, BookOpen, MessageSquare, Star, TrendingUp, Activity } from 'lucide-react'
 
 async function getStats() {
   const today = new Date()
@@ -8,6 +8,7 @@ async function getStats() {
   weekAgo.setDate(weekAgo.getDate() - 7)
   const monthAgo = new Date(today)
   monthAgo.setMonth(monthAgo.getMonth() - 1)
+  const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000)
 
   const [
     totalUsers,
@@ -19,6 +20,7 @@ async function getStats() {
     totalRatings,
     adminCount,
     roleBreakdown,
+    recentViewLogs,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { createdAt: { gte: today } } }),
@@ -29,7 +31,14 @@ async function getStats() {
     prisma.difficultyRating.count(),
     prisma.user.count({ where: { role: { in: ['ADMIN', 'SUPER_ADMIN', 'PLATFORM_MANAGER', 'SYSTEM_MANAGER', 'OPERATIONS_MANAGER'] } } }),
     prisma.user.groupBy({ by: ['role'], _count: { role: true } }),
+    prisma.courseViewLog.findMany({
+      where: { createdAt: { gte: fifteenMinAgo } },
+      select: { userId: true },
+      distinct: ['userId'],
+    }),
   ])
+
+  const onlineUsers = recentViewLogs.length
 
   return {
     totalUsers,
@@ -41,6 +50,7 @@ async function getStats() {
     totalRatings,
     adminCount,
     roleBreakdown,
+    onlineUsers,
   }
 }
 
@@ -111,6 +121,14 @@ export default async function AdminStatsPage() {
       color: 'text-red-600',
       bg: 'bg-red-50',
     },
+    {
+      label: 'ผู้ใช้งานอยู่ในระบบตอนนี้',
+      value: stats.onlineUsers.toLocaleString(),
+      icon: Activity,
+      color: 'text-emerald-600',
+      bg: 'bg-emerald-50',
+      note: '(15 นาทีที่ผ่านมา)',
+    },
   ]
 
   const roleMap: Record<string, string> = {
@@ -149,7 +167,7 @@ export default async function AdminStatsPage() {
       {/* System stats */}
       <div>
         <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">ระบบ</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           {systemCards.map(card => (
             <div key={card.label} className="bg-white rounded-2xl border border-gray-200 p-5">
               <div className={`inline-flex p-2 rounded-xl ${card.bg} mb-3`}>
@@ -157,6 +175,9 @@ export default async function AdminStatsPage() {
               </div>
               <p className="text-2xl font-bold text-gray-900">{card.value}</p>
               <p className="text-sm text-gray-500 mt-0.5">{card.label}</p>
+              {'note' in card && card.note && (
+                <p className="text-xs text-gray-400 mt-0.5">{card.note}</p>
+              )}
             </div>
           ))}
         </div>

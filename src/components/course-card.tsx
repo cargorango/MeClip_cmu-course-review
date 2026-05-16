@@ -51,6 +51,13 @@ export default function CourseCard({
               {course.credits} หน่วยกิต
             </span>
 
+            {/* Faculty badge */}
+            {course.faculty?.nameTh && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                {course.faculty.nameTh}
+              </span>
+            )}
+
             {/* Free elective tag */}
             {showFreeElectiveTag && course.isFreeElective && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
